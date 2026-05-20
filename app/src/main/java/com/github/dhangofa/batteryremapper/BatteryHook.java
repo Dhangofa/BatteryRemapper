@@ -1,6 +1,7 @@
 package com.github.dhangofa.batteryremapper;
 
-import java.lang.reflect.Method;
+import android.content.Intent;
+import android.os.BatteryManager;
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -11,45 +12,32 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
+        // We only want to trick the System UI into drawing the new number.
+        // We leave the rest of the OS alone so charging logic doesn't break.
         if (!lpparam.packageName.equals("com.android.systemui")) {
             return;
         }
 
         try {
-            Class<?> batteryControllerClass = XposedHelpers.findClass(
-                "com.android.systemui.statusbar.policy.BatteryControllerImpl", 
-                lpparam.classLoader
-            );
-
-            // Dynamically search for the method by name to avoid signature mismatches
-            Method targetMethod = null;
-            for (Method method : batteryControllerClass.getDeclaredMethods()) {
-                if (method.getName().equals("fireBatteryLevelChanged")) {
-                    targetMethod = method;
-                    break;
-                }
-            }
-
-            if (targetMethod != null) {
-                XposedBridge.hookMethod(targetMethod, new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        // The first parameter (index 0) is always the battery level integer
-                        if (param.args != null && param.args.length > 0 && param.args[0] instanceof Integer) {
-                            int physicalLevel = (Integer) param.args[0];
-                            
-                            // Apply your mathematical remapping logic here
-                            // Example: converting a physical 20%-80% range into a displayed 0%-100%
-                            int displayedLevel = remapBattery(physicalLevel);
-                            
-                            param.args[0] = displayedLevel;
-                        }
+            // Hook the exact moment SystemUI reads an integer from ANY Intent
+            XposedHelpers.findAndHookMethod(Intent.class, "getIntExtra", String.class, int.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    String key = (String) param.args[0];
+                    
+                    // If SystemUI is asking for the Battery Level...
+                    if (BatteryManager.EXTRA_LEVEL.equals(key)) {
+                        // Get the real, physical battery level the system just read
+                        int originalLevel = (Integer) param.getResult();
+                        
+                        // Run our math and overwrite the result being returned to crDroid
+                        int displayedLevel = remapBattery(originalLevel);
+                        param.setResult(displayedLevel);
                     }
-                });
-                XposedBridge.log("BatteryRemapper: Successfully hooked fireBatteryLevelChanged dynamically!");
-            } else {
-                XposedBridge.log("BatteryRemapper Error: fireBatteryLevelChanged method not found.");
-            }
+                }
+            });
+            
+            XposedBridge.log("BatteryRemapper: Successfully hooked Intent.getIntExtra for crDroid!");
 
         } catch (Throwable t) {
             XposedBridge.log("BatteryRemapper Hook Critical Failure: " + t.getMessage());
@@ -59,7 +47,6 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private int remapBattery(int physicalLevel) {
         if (physicalLevel <= 20) return 0;
         if (physicalLevel >= 80) return 100;
-        // Remap the intermediate 20-80 range linearly to 0-100
         return Math.round((float)(physicalLevel - 20) * 100f / 60f);
     }
 }
