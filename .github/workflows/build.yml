@@ -19,20 +19,22 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Step 1: Compiles a clean, highly compressed Release APK
     - name: Compile Release APK using Gradle
       run: gradle assembleRelease
 
-    # Step 2: Generates an on-the-fly signing key and signs the Release APK
-    - name: Sign Release APK
+    - name: Sign Release APK with apksigner (V2 Signature)
       run: |
         keytool -genkey -v -keystore release.keystore -alias signAlias -keyalg RSA -keysize 2048 -validity 10000 -storepass mypassword -keypass mypassword -dname "CN=dhangofa, O=Github, C=US"
-        jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA256 -keystore release.keystore -storepass mypassword app/build/outputs/apk/release/app-release-unsigned.apk signAlias
-        mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/BatteryRemapper.apk
+        
+        # Find the latest Android build tools installed on the GitHub runner
+        BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+        
+        # Use apksigner to apply the modern V2 signature
+        $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:mypassword --out app/build/outputs/apk/release/BatteryRemapper.apk app/build/outputs/apk/release/app-release-unsigned.apk
 
-    # Step 3: Uploads the direct raw .apk without zip encapsulation
     - name: Upload APK Directly
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@v4
       with:
+        name: BatteryRemapper
         path: app/build/outputs/apk/release/BatteryRemapper.apk
-        archive: false # Tells GitHub to serve the raw .apk file directly
+        compression-level: 0
