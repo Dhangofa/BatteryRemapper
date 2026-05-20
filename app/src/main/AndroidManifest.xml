@@ -3,9 +3,9 @@
 
     <application
         android:allowBackup="false"
+        android:label="Battery Remapper"
         android:supportsRtl="true">
         
-        <!-- Tells the LSPosed manager app that this is an active hook module -->
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
