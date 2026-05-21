@@ -4,7 +4,6 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -18,19 +17,21 @@ jobs:
     - name: Compile Release APK using Gradle
       run: gradle assembleRelease
 
+    - name: Decode Permanent Keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
     - name: Zipalign and Sign Release APK (V2 Signature)
       run: |
-        keytool -genkey -v -keystore release.keystore -alias signAlias -keyalg RSA -keysize 2048 -validity 10000 -storepass mypassword -keypass mypassword -dname "CN=dhangofa, O=Github, C=US"
-        
         BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
         
         $BUILD_TOOLS_DIR/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release-aligned.apk
         
-        $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:mypassword --out app/build/outputs/apk/release/BatteryRemapper.apk app/build/outputs/apk/release/app-release-aligned.apk
+        $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} --out app/build/outputs/apk/release/BatteryRemapper.apk app/build/outputs/apk/release/app-release-aligned.apk
 
-    - name: Upload APK Directly
+    - name: Upload APK as Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: BatteryRemapper
+        name: BatteryRemapper-Package
         path: app/build/outputs/apk/release/BatteryRemapper.apk
         compression-level: 0
