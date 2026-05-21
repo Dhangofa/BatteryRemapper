@@ -39,3 +39,7 @@ Because the module maps a 60-point physical range into a 100-point display range
 * **Framework Requirement:** LSPosed (Zygisk release).
 * **Tested Architecture:** Designed and verified on custom AOSP architectures, specifically tested on **crDroid 12.9** running on the **Redmi Note 12 Pro 5G** platform.
 * **ROM Compatibility:** Highly compatible with heavily modified status bar engines (e.g., Evolution X, crDroid, Infinity X) that deploy custom battery styles like Circles, Dotted Icons, and Text indicators.
+---
+## 💬 Contact & Support
+
+[![Telegram](https://img.shields.io/badge/Telegram-26A69A?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/dhangofa)
