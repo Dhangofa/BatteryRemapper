@@ -42,4 +42,4 @@ Because the module maps a 60-point physical range into a 100-point display range
 ---
 ## 💬 Contact & Support
 
-[![Telegram](https://img.shields.io/badge/Telegram-26A69A?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/dhangofa)
+[![Telegram](https://img.shields.io/badge/Telegram-%230088cc?style=plastic&logo=telegram&logoColor=white)](https://t.me/dhangofa)
