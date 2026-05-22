@@ -35,63 +35,64 @@ public class BatteryHook implements IXposedHookLoadPackage {
         // HOOK 1: SYSTEM SERVER (android)
         // This tricks the core OS to force real hardware shutdowns and enable battery saver
         // ------------------------------------------------------------------
-        if (lpparam.packageName.equals("android")) {
-            try {
-                XposedHelpers.findAndHookMethod(
-                    "com.android.server.am.ActivityManagerService",
-                    lpparam.classLoader,
-                    "broadcastIntent",
-                    // We only need the first few parameters to intercept the Intent
-                    de.robv.android.xposed.XposedHelpers.findClass("android.app.IApplicationThread", lpparam.classLoader),
-                    Intent.class,
-                    String.class,
-                    de.robv.android.xposed.XposedHelpers.findClass("android.content.IIntentReceiver", lpparam.classLoader),
-                    int.class,
-                    String.class,
-                    Bundle.class,
-                    String[].class,
-                    int.class,
-                    Bundle.class,
-                    boolean.class,
-                    boolean.class,
-                    int.class,
-                    new XC_MethodHook() {
-                        @Override
-                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                            Intent intent = (Intent) param.args[1];
-                            if (intent != null && Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
-                                
-                                int originalLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-                                if (originalLevel != -1) {
-                                    int remappedLevel = remapBattery(originalLevel);
-                                    
-                                    // Overwrite the intent so the ENTIRE system sees the new UI level
-                                    intent.putExtra(BatteryManager.EXTRA_LEVEL, remappedLevel);
-
-                                    // FEATURE: AUTO BATTERY SAVER AT 20% UI (which is 32% physical)
-                                    if (remappedLevel <= 20) {
-                                        int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
-                                        if (plugged == 0 && !batterySaverTriggered) {
-                                            enableBatterySaver(param.thisObject);
-                                            batterySaverTriggered = true;
-                                        } else if (plugged != 0) {
-                                            // Reset trigger if plugged in
-                                            batterySaverTriggered = false; 
-                                        }
-                                    } else {
-                                        batterySaverTriggered = false;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                );
-                XposedBridge.log("BatteryRemapper: System Server hooked successfully.");
-            } catch (Throwable t) {
-                XposedBridge.log("BatteryRemapper Core Hook Failure: " + t.getMessage());
-            }
-        }
-
+		if (lpparam.packageName.equals("android")) {
+			try {
+				Class<?> amsClass = XposedHelpers.findClass("com.android.server.am.ActivityManagerService", lpparam.classLoader);
+				
+				// hookAllMethods survives Android 16 signature changes
+				XposedBridge.hookAllMethods(amsClass, "broadcastIntent", new XC_MethodHook() {
+					@Override
+					protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+						// FAST EXIT: Prevents CPU drain. If no args, skip immediately.
+						if (param.args == null || param.args.length < 2) return;
+		
+						Intent intent = null;
+						
+						// On Android 16, the Intent is almost always exactly at index 1.
+						// We check this first for maximum performance.
+						if (param.args[1] instanceof Intent) {
+							intent = (Intent) param.args[1];
+						} else {
+							// Fallback: search the arguments just in case a specific custom ROM shifted it
+							for (Object arg : param.args) {
+								if (arg instanceof Intent) {
+									intent = (Intent) arg;
+									break;
+								}
+							}
+						}
+		
+						// If we found an intent, and it's the Battery broadcast, intercept it
+						if (intent != null && Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
+							int originalLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+							
+							if (originalLevel != -1) {
+								int remappedLevel = remapBattery(originalLevel);
+								
+								// Overwrite the intent so the native Android 16 OS sees the new UI level
+								intent.putExtra(BatteryManager.EXTRA_LEVEL, remappedLevel);
+		
+								// FEATURE: AUTO BATTERY SAVER AT 20% UI
+								if (remappedLevel <= 20) {
+									int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+									if (plugged == 0 && !batterySaverTriggered) {
+										enableBatterySaver(param.thisObject);
+										batterySaverTriggered = true;
+									} else if (plugged != 0) {
+										batterySaverTriggered = false; 
+									}
+								} else {
+									batterySaverTriggered = false;
+								}
+							}
+						}
+					}
+				});
+				XposedBridge.log("BatteryRemapper: Android 16 System Server hooked successfully.");
+			} catch (Throwable t) {
+				XposedBridge.log("BatteryRemapper Core Hook Failure: " + t.getMessage());
+			}
+		}
         // ------------------------------------------------------------------
         // HOOK 2: SYSTEM UI (com.android.systemui)
         // This handles your visual 30-second countdown popup
