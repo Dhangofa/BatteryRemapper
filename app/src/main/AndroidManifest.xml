@@ -10,9 +10,12 @@
             android:name="xposedmodule"
             android:value="true" />
             
-        <meta-data
-            android:name="xposedscope"
-            android:value="android,com.android.systemui" />
+        <resources>
+            <string-array name="xposedscope">
+                <item>android</item>
+                <item>com.android.systemui</item>
+            </string-array>
+        </resources>
             
         <meta-data
             android:name="xposeddescription"
