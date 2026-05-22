@@ -9,7 +9,9 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.view.WindowManager;
+
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -22,65 +24,148 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private static boolean isShuttingDown = false;
     private static AlertDialog shutdownDialog = null;
     private static CountDownTimer shutdownTimer = null;
+    
+    // Track battery saver to prevent spamming the toggle
+    private static boolean batterySaverTriggered = false;
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
-        if (!lpparam.packageName.equals("com.android.systemui")) {
-            return;
+        
+        // ------------------------------------------------------------------
+        // HOOK 1: SYSTEM SERVER (android)
+        // This tricks the core OS to force real hardware shutdowns and enable battery saver
+        // ------------------------------------------------------------------
+        if (lpparam.packageName.equals("android")) {
+            try {
+                XposedHelpers.findAndHookMethod(
+                    "com.android.server.am.ActivityManagerService",
+                    lpparam.classLoader,
+                    "broadcastIntent",
+                    // We only need the first few parameters to intercept the Intent
+                    de.robv.android.xposed.XposedHelpers.findClass("android.app.IApplicationThread", lpparam.classLoader),
+                    Intent.class,
+                    String.class,
+                    de.robv.android.xposed.XposedHelpers.findClass("android.content.IIntentReceiver", lpparam.classLoader),
+                    int.class,
+                    String.class,
+                    Bundle.class,
+                    String[].class,
+                    int.class,
+                    Bundle.class,
+                    boolean.class,
+                    boolean.class,
+                    int.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            Intent intent = (Intent) param.args[1];
+                            if (intent != null && Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
+                                
+                                int originalLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                                if (originalLevel != -1) {
+                                    int remappedLevel = remapBattery(originalLevel);
+                                    
+                                    // Overwrite the intent so the ENTIRE system sees the new UI level
+                                    intent.putExtra(BatteryManager.EXTRA_LEVEL, remappedLevel);
+
+                                    // FEATURE: AUTO BATTERY SAVER AT 20% UI (which is 32% physical)
+                                    if (remappedLevel <= 20) {
+                                        int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+                                        if (plugged == 0 && !batterySaverTriggered) {
+                                            enableBatterySaver(param.thisObject);
+                                            batterySaverTriggered = true;
+                                        } else if (plugged != 0) {
+                                            // Reset trigger if plugged in
+                                            batterySaverTriggered = false; 
+                                        }
+                                    } else {
+                                        batterySaverTriggered = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                );
+                XposedBridge.log("BatteryRemapper: System Server hooked successfully.");
+            } catch (Throwable t) {
+                XposedBridge.log("BatteryRemapper Core Hook Failure: " + t.getMessage());
+            }
         }
 
-        try {
-            XposedHelpers.findAndHookMethod(Intent.class, "getIntExtra", String.class, int.class, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    String key = (String) param.args[0];
-                    
-                    if (BatteryManager.EXTRA_LEVEL.equals(key)) {
-                        int originalLevel = (Integer) param.getResult();
+        // ------------------------------------------------------------------
+        // HOOK 2: SYSTEM UI (com.android.systemui)
+        // This handles your visual 30-second countdown popup
+        // ------------------------------------------------------------------
+        if (lpparam.packageName.equals("com.android.systemui")) {
+            try {
+                XposedHelpers.findAndHookMethod(Intent.class, "getIntExtra", String.class, int.class, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        String key = (String) param.args[0];
                         
-                        Intent intent = (Intent) param.thisObject;
-                        Bundle extras = intent.getExtras();
-                        
-                        // Check if phone is plugged in (0 means on battery)
-                        int plugged = extras != null ? extras.getInt(BatteryManager.EXTRA_PLUGGED, 0) : 0;
-                        
-                        // 1. SHUTDOWN LOGIC
-                        if (originalLevel <= 20) {
-                            if (plugged == 0) {
-                                // Hit 20% and not charging: Start the countdown once
-                                if (!isShuttingDown) {
-                                    isShuttingDown = true;
-                                    startCountdown();
+                        if (BatteryManager.EXTRA_LEVEL.equals(key)) {
+                            int originalLevel = (Integer) param.getResult();
+                            
+                            Intent intent = (Intent) param.thisObject;
+                            Bundle extras = intent.getExtras();
+                            
+                            int plugged = extras != null ? extras.getInt(BatteryManager.EXTRA_PLUGGED, 0) : 0;
+                            int displayedLevel = remapBattery(originalLevel);
+                            
+                            // SHUTDOWN UI LOGIC (Triggers at physical 20% / UI 0%)
+                            if (originalLevel <= 20) {
+                                if (plugged == 0) {
+                                    if (!isShuttingDown) {
+                                        isShuttingDown = true;
+                                        startCountdown();
+                                    }
+                                } else {
+                                    if (isShuttingDown) {
+                                        cancelCountdown();
+                                    }
                                 }
                             } else {
-                                // Hit 20% but charger is connected: Abort shutdown
                                 if (isShuttingDown) {
                                     cancelCountdown();
                                 }
                             }
-                        } else {
-                            // Battery is safely above 20%: Abort shutdown if running
-                            if (isShuttingDown) {
-                                cancelCountdown();
-                            }
+                            
+                            // Return the remapped value to the status bar UI
+                            param.setResult(displayedLevel);
                         }
-                        
-                        // 2. UI LOGIC: Overwrite the result for the status bar
-                        int displayedLevel = remapBattery(originalLevel);
-                        param.setResult(displayedLevel);
                     }
-                }
-            });
-            
-            XposedBridge.log("BatteryRemapper: Hook initialized with 30s Countdown Feature!");
+                });
+                
+                XposedBridge.log("BatteryRemapper: System UI hooked with 30s Countdown Feature!");
 
+            } catch (Throwable t) {
+                XposedBridge.log("BatteryRemapper UI Hook Critical Failure: " + t.getMessage());
+            }
+        }
+    }
+
+    // ======================================================================
+    // HELPER METHODS
+    // ======================================================================
+
+    private void enableBatterySaver(Object activityManagerService) {
+        try {
+            // Get the system context from the ActivityManagerService
+            Context context = (Context) XposedHelpers.getObjectField(activityManagerService, "mContext");
+            if (context != null) {
+                PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                if (powerManager != null && !powerManager.isPowerSaveMode()) {
+                    // Force the Battery Saver ON using standard PowerManager API reflection
+                    XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", true);
+                    XposedBridge.log("BatteryRemapper: Battery Saver automatically enabled at 20% UI limit.");
+                }
+            }
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper Hook Critical Failure: " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Failed to enable Battery Saver - " + t.getMessage());
         }
     }
 
     private void startCountdown() {
-        // UI elements MUST run on the main Android UI thread
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {
@@ -88,18 +173,15 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     Context context = AndroidAppHelper.currentApplication();
                     if (context == null) return;
 
-                    // Build the Warning Box
                     AlertDialog.Builder builder = new AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert);
                     builder.setTitle("Battery Depleted");
                     builder.setMessage("Device will shut down in 30 seconds.\nPlug in charger to cancel.");
-                    builder.setCancelable(false); // Prevents dismissing by tapping outside
+                    builder.setCancelable(false);
                     
                     shutdownDialog = builder.create();
-                    // TYPE_SYSTEM_ERROR (2010) bypasses all screens to draw directly over everything
                     shutdownDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ERROR);
                     shutdownDialog.show();
 
-                    // Start the 30 second timer (30000ms total, updating every 1000ms)
                     shutdownTimer = new CountDownTimer(30000, 1000) {
                         @Override
                         public void onTick(long millisUntilFinished) {
@@ -110,15 +192,14 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
                         @Override
                         public void onFinish() {
-                            cancelCountdown(); // Cleanup the UI
-                            triggerShutdown(); // Kill the power
+                            cancelCountdown();
+                            triggerShutdown();
                         }
                     }.start();
                     
                     XposedBridge.log("BatteryRemapper: 30-second shutdown countdown started.");
                 } catch (Throwable t) {
                     XposedBridge.log("BatteryRemapper UI Failure: " + t.getMessage());
-                    // Failsafe: If the custom ROM blocks the dialog from drawing, shut down gracefully anyway
                     triggerShutdown(); 
                 }
             }
