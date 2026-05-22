@@ -9,12 +9,19 @@
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
+            
+        <meta-data
+            android:name="xposedscope"
+            android:value="android,com.android.systemui" />
+            
         <meta-data
             android:name="xposeddescription"
             android:value="Remaps system UI battery scale from physical 20%-80% into 0%-100% display layer." />
+            
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
+            
     </application>
 
 </manifest>
