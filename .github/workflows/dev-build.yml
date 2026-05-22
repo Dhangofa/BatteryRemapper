@@ -2,41 +2,48 @@ name: Dev Test Build
 
 on:
   push:
-    branches: [ "dev" ] # Only runs when you push to the dev branch
+    branches: [ "dev" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
+    - name: Set up Java Development Kit (JDK)
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+    # Using global gradle exactly like your main branch
+    - name: Compile Release APK using Gradle
+      run: gradle assembleRelease
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
+    # Using your exact keystore decoding logic
+    - name: Decode Permanent Keystore
+      run: |
+        cat << 'EOF' > encoded_key.txt
+        ${{ secrets.KEYSTORE_BASE64 }}
+        EOF
+        sed -i '/---/d' encoded_key.txt
+        tr -d '\r\n ' < encoded_key.txt | base64 --decode > release.keystore
 
-      # Signs the app with your exact production keys so you don't have to uninstall the old one!
-      - name: Sign APK
-        uses: ilharp/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDir: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+    # Using your exact signing logic so the dev APK matches production signatures perfectly
+    - name: Zipalign and Sign Release APK (V2 Signature)
+      run: |
+        BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+        
+        $BUILD_TOOLS_DIR/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release-aligned.apk
+        
+        $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} --out app/build/outputs/apk/release/BatteryRemapper.apk app/build/outputs/apk/release/app-release-aligned.apk
 
-      # Uploads the file privately to the GitHub run instead of making a public release
-      - name: Upload Test APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: BatteryRemapper-Dev-Test
-          path: ${{steps.sign_app.outputs.signedFile}}
+    # Uploads privately to the Actions tab instead of creating a public release
+    - name: Upload Test APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: BatteryRemapper-Dev-Test
+        path: app/build/outputs/apk/release/BatteryRemapper.apk
+        compression-level: 0
