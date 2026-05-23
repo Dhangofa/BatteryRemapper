@@ -23,7 +23,7 @@ jobs:
         distribution: 'temurin'
 
     - name: Compile Release APK using Gradle
-      run: gradle assembleRelease
+      run: gradle assembleRelease -PversionCode=${{ github.run_number }}
 
     - name: Decode Permanent Keystore
       run: |
