@@ -30,60 +30,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
         
         // ------------------------------------------------------------------
-        // HOOK 1: SYSTEM SERVER - Read-Only Monitor + Action Trigger
-        // ------------------------------------------------------------------
-        if (lpparam.packageName.equals("android")) {
-            try {
-                Class<?> batteryServiceClass = XposedHelpers.findClass("com.android.server.BatteryService", lpparam.classLoader);
-                
-                XposedBridge.hookAllMethods(batteryServiceClass, "processValuesLocked", new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        
-                        Object mHealthInfo = XposedHelpers.getObjectField(param.thisObject, "mHealthInfo");
-                        if (mHealthInfo == null) return;
-
-                        // Extract the highly privileged system context directly from BatteryService
-                        Context mContext = (Context) XposedHelpers.getObjectField(param.thisObject, "mContext");
-                        if (mContext == null) return;
-
-                        // READ ONLY - We do not overwrite the physical battery data
-                        int physicalLevel = XposedHelpers.getIntField(mHealthInfo, "batteryLevel");
-                        
-                        boolean acOnline = XposedHelpers.getBooleanField(mHealthInfo, "chargerAcOnline");
-                        boolean usbOnline = XposedHelpers.getBooleanField(mHealthInfo, "chargerUsbOnline");
-                        int plugged = (acOnline || usbOnline) ? 1 : 0;
-                        
-                        int virtualLevel = remapBattery(physicalLevel);
-
-                        if (virtualLevel <= 20) {
-                            isSaverTargetOn = true;
-                        } else if (virtualLevel >= 51) {
-                            isSaverTargetOn = false;
-                        }
-
-                        if (plugged == 0) {
-                            if (isSaverTargetOn && appliedSaverState != 1) {
-                                enableBatterySaver(mContext);
-                                appliedSaverState = 1;
-                            } else if (!isSaverTargetOn && appliedSaverState != 0) {
-                                disableBatterySaver(mContext);
-                                appliedSaverState = 0;
-                            }
-                        } else {
-                            appliedSaverState = -1;
-                        }
-                    }
-                });
-                
-                XposedBridge.log("BatteryRemapper: System Server Monitor hooked (Read-Only).");
-            } catch (Throwable t) {
-                XposedBridge.log("BatteryRemapper Core Hook Failure: " + t.getMessage());
-            }
-        }
-
-        // ------------------------------------------------------------------
-        // HOOK 2: SYSTEM UI - Visual Spoofing + Shutdown Timer
+        // HOOK: SYSTEM UI - Visuals, Saver Automation, & Shutdown Timer
         // ------------------------------------------------------------------
         if (lpparam.packageName.equals("com.android.systemui")) {
             try {
@@ -93,14 +40,40 @@ public class BatteryHook implements IXposedHookLoadPackage {
                         String key = (String) param.args[0];
                         
                         if (BatteryManager.EXTRA_LEVEL.equals(key)) {
-                            int originalLevel = (Integer) param.getResult();
+                            // 1. Get the true physical hardware state
+                            int originalLevel = (Integer) param.getResult(); 
                             
                             Intent intent = (Intent) param.thisObject;
                             Bundle extras = intent.getExtras();
-                            
                             int plugged = extras != null ? extras.getInt(BatteryManager.EXTRA_PLUGGED, 0) : 0;
+                            
+                            // 2. Calculate the fake UI percentage
                             int displayedLevel = remapBattery(originalLevel);
                             
+                            // 3. BATTERY SAVER AUTOMATION
+                            // Triggered directly from SystemUI so the ROM thinks a human pressed the QS Tile
+                            Context context = AndroidAppHelper.currentApplication();
+                            if (context != null) {
+                                if (displayedLevel <= 20) {
+                                    isSaverTargetOn = true;
+                                } else if (displayedLevel >= 51) {
+                                    isSaverTargetOn = false;
+                                }
+
+                                if (plugged == 0) {
+                                    if (isSaverTargetOn && appliedSaverState != 1) {
+                                        enableBatterySaver(context);
+                                        appliedSaverState = 1;
+                                    } else if (!isSaverTargetOn && appliedSaverState != 0) {
+                                        disableBatterySaver(context);
+                                        appliedSaverState = 0;
+                                    }
+                                } else {
+                                    appliedSaverState = -1;
+                                }
+                            }
+
+                            // 4. SHUTDOWN TIMER (Based on Physical Level)
                             if (originalLevel <= 20) { 
                                 if (plugged == 0) {
                                     if (!isShuttingDown) {
@@ -118,12 +91,13 @@ public class BatteryHook implements IXposedHookLoadPackage {
                                 }
                             }
                             
+                            // 5. Apply the Visual Spoof to the Status Bar
                             param.setResult(displayedLevel);
                         }
                     }
                 });
                 
-                XposedBridge.log("BatteryRemapper: System UI hooked for Visuals & Shutdown Timer.");
+                XposedBridge.log("BatteryRemapper: System UI hooked for Visuals, Saver, & Shutdown!");
                 
             } catch (Throwable t) {
                 XposedBridge.log("BatteryRemapper UI Hook Critical Failure: " + t.getMessage());
@@ -132,24 +106,26 @@ public class BatteryHook implements IXposedHookLoadPackage {
     }
 
     // ======================================================================
-    // HELPER METHODS (System Context API)
+    // HELPER METHODS (Executing as SystemUI Native)
     // ======================================================================
 
     private void enableBatterySaver(Context context) {
         try {
-            // 1. Official PowerManager API Execution
+            // Primary Method: Standard Native API
             Object powerManager = context.getSystemService(Context.POWER_SERVICE);
             if (powerManager != null) {
                 XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", true);
             }
             
-            // 2. Settings Database Fallback Backup
-            android.provider.Settings.Global.putInt(context.getContentResolver(), "low_power", 1);
+            // Secondary Fallback: Mimic the exact class the Quick Settings tile uses
+            try {
+                Class<?> saverUtils = XposedHelpers.findClass("com.android.settingslib.fuelgauge.BatterySaverUtils", context.getClassLoader());
+                XposedHelpers.callStaticMethod(saverUtils, "setPowerSaveMode", context, true, true);
+            } catch (Throwable ignored) { }
             
-            XposedBridge.log("BatteryRemapper: Battery Saver toggled ON using System Context.");
+            XposedBridge.log("BatteryRemapper: Battery Saver ON (SystemUI Authorized).");
         } catch (Throwable t) {
-            // This safely catches the "IllegalStateException" during early boot and ignores it
-            XposedBridge.log("BatteryRemapper: Context Toggle Ignored: " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: SystemUI Toggle Ignored: " + t.getMessage());
         }
     }
 
@@ -160,11 +136,14 @@ public class BatteryHook implements IXposedHookLoadPackage {
                 XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", false);
             }
             
-            android.provider.Settings.Global.putInt(context.getContentResolver(), "low_power", 0);
+            try {
+                Class<?> saverUtils = XposedHelpers.findClass("com.android.settingslib.fuelgauge.BatterySaverUtils", context.getClassLoader());
+                XposedHelpers.callStaticMethod(saverUtils, "setPowerSaveMode", context, false, false);
+            } catch (Throwable ignored) { }
             
-            XposedBridge.log("BatteryRemapper: Battery Saver toggled OFF using System Context.");
+            XposedBridge.log("BatteryRemapper: Battery Saver OFF (SystemUI Authorized).");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Context Toggle Ignored: " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: SystemUI Toggle Ignored: " + t.getMessage());
         }
     }
 
