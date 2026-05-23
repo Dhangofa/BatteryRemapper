@@ -33,30 +33,32 @@ public class BatteryHook implements IXposedHookLoadPackage {
         // ------------------------------------------------------------------
         // HOOK 1: SYSTEM SERVER (android)
         // ------------------------------------------------------------------
-       if (lpparam.packageName.equals("android")) {
+        if (lpparam.packageName.equals("android")) {
             try {
                 // Hook the BatteryService class directly
                 Class<?> batteryServiceClass = XposedHelpers.findClass("com.android.server.BatteryService", lpparam.classLoader);
                 
-                // processValuesLocked is the method that updates battery status internally
                 XposedBridge.hookAllMethods(batteryServiceClass, "processValuesLocked", new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        // Get the BatteryProperties object (the 3rd argument in the method)
-                        Object mBatteryProps = param.args[2]; 
                         
-                        // Reflection to get the current level from BatteryProperties
-                        int originalLevel = (int) XposedHelpers.getIntField(mBatteryProps, "batteryLevel");
-                        int plugged = (int) XposedHelpers.getIntField(mBatteryProps, "chargerAcOnline") == 1 ? 1 : 0;
-                        if (plugged == 0) plugged = (int) XposedHelpers.getIntField(mBatteryProps, "chargerUsbOnline") == 1 ? 2 : 0;
+                        // THE FIX: Grab the internal hardware data object directly, bypassing param.args entirely
+                        Object mHealthInfo = XposedHelpers.getObjectField(param.thisObject, "mHealthInfo");
+                        if (mHealthInfo == null) return;
 
+                        // Read the physical hardware data using boolean/int getters
+                        int originalLevel = XposedHelpers.getIntField(mHealthInfo, "batteryLevel");
+                        boolean acOnline = XposedHelpers.getBooleanField(mHealthInfo, "chargerAcOnline");
+                        boolean usbOnline = XposedHelpers.getBooleanField(mHealthInfo, "chargerUsbOnline");
+                        
+                        int plugged = (acOnline || usbOnline) ? 1 : 0;
                         int remappedLevel = remapBattery(originalLevel);
                         
                         // DEBUG LOG
                         XposedBridge.log("BatteryRemapper-Debug: BatteryService processed. Physical:" + originalLevel + " Remapped:" + remappedLevel);
 
-                        // Overwrite the level
-                        XposedHelpers.setIntField(mBatteryProps, "batteryLevel", remappedLevel);
+                        // Overwrite the level so the whole system sees the remapped UI percentage
+                        XposedHelpers.setIntField(mHealthInfo, "batteryLevel", remappedLevel);
 
                         // FEATURE: TRIGGER SAVER
                         if (remappedLevel <= 20) {
@@ -79,7 +81,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     }
                 });
                 
-                XposedBridge.log("BatteryRemapper: BatteryService hooked successfully.");
+                XposedBridge.log("BatteryRemapper: Android 16 BatteryService hooked successfully.");
             } catch (Throwable t) {
                 XposedBridge.log("BatteryRemapper Core Hook Failure: " + t.getMessage());
             }
@@ -126,7 +128,6 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     }
                 });
                 
-                // ADDED BACK: Startup confirmation log for the System UI
                 XposedBridge.log("BatteryRemapper: System UI hooked with 30s Countdown Feature!");
                 
             } catch (Throwable t) {
@@ -139,10 +140,9 @@ public class BatteryHook implements IXposedHookLoadPackage {
     // HELPER METHODS
     // ======================================================================
 
-	private void enableBatterySaver() {
+    private void enableBatterySaver() {
         try {
-            // This forces the kernel to report that power-save mode is active, 
-            // bypassing the PowerManagerService/SystemUI notification logic entirely.
+            // Kernel override via su
             Process p = Runtime.getRuntime().exec(new String[]{
                 "/system/bin/su", "-c", 
                 "settings put global low_power 1 && cmd power set-mode 1"
@@ -166,6 +166,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
             XposedBridge.log("BatteryRemapper: Kernel-level override failed: " + t.getMessage());
         }
     }
+    
     private void startCountdown() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
