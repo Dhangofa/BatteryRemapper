@@ -150,49 +150,31 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
 	private void enableBatterySaver() {
         try {
-            Context context = AndroidAppHelper.currentApplication();
-            if (context == null) return;
-
-            // 1. Force the internal state
-            Object powerManagerService = XposedHelpers.callStaticMethod(XposedHelpers.findClass("android.os.ServiceManager", null), "getService", "power");
-            Object ipm = XposedHelpers.callStaticMethod(XposedHelpers.findClass("android.os.IPowerManager$Stub", null), "asInterface", powerManagerService);
-            Object mBatterySaverPolicy = XposedHelpers.getObjectField(ipm, "mBatterySaverPolicy");
-            
-            // Try common field names for Android 16
-            try { XposedHelpers.setBooleanField(mBatterySaverPolicy, "mIsBatterySaverEnabled", true); }
-            catch (Throwable e) { XposedHelpers.setBooleanField(mBatterySaverPolicy, "mBatterySaverEnabled", true); }
-
-            // 2. FORCE the Broadcast that notifies the rest of the OS
-            Intent intent = new Intent("android.os.action.POWER_SAVE_MODE_CHANGED");
-            context.sendBroadcast(intent);
-            
-            XposedBridge.log("BatteryRemapper: Forced State + Broadcast sent.");
+            // This forces the kernel to report that power-save mode is active, 
+            // bypassing the PowerManagerService/SystemUI notification logic entirely.
+            Process p = Runtime.getRuntime().exec(new String[]{
+                "/system/bin/su", "-c", 
+                "settings put global low_power 1 && cmd power set-mode 1"
+            });
+            p.waitFor();
+            XposedBridge.log("BatteryRemapper: Kernel-level Power Saver forced ON.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Force Override failed - " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Kernel-level override failed: " + t.getMessage());
         }
     }
 
     private void disableBatterySaver() {
         try {
-            Context context = AndroidAppHelper.currentApplication();
-            if (context == null) return;
-
-            Object powerManagerService = XposedHelpers.callStaticMethod(XposedHelpers.findClass("android.os.ServiceManager", null), "getService", "power");
-            Object ipm = XposedHelpers.callStaticMethod(XposedHelpers.findClass("android.os.IPowerManager$Stub", null), "asInterface", powerManagerService);
-            Object mBatterySaverPolicy = XposedHelpers.getObjectField(ipm, "mBatterySaverPolicy");
-            
-            try { XposedHelpers.setBooleanField(mBatterySaverPolicy, "mIsBatterySaverEnabled", false); }
-            catch (Throwable e) { XposedHelpers.setBooleanField(mBatterySaverPolicy, "mBatterySaverEnabled", false); }
-
-            Intent intent = new Intent("android.os.action.POWER_SAVE_MODE_CHANGED");
-            context.sendBroadcast(intent);
-            
-            XposedBridge.log("BatteryRemapper: Disabled State + Broadcast sent.");
+            Process p = Runtime.getRuntime().exec(new String[]{
+                "/system/bin/su", "-c", 
+                "settings put global low_power 0 && cmd power set-mode 0"
+            });
+            p.waitFor();
+            XposedBridge.log("BatteryRemapper: Kernel-level Power Saver forced OFF.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Force Override failed - " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Kernel-level override failed: " + t.getMessage());
         }
     }
-
     private void startCountdown() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
