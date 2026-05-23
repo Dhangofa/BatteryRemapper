@@ -43,14 +43,17 @@ public class BatteryHook implements IXposedHookLoadPackage {
                         Object mHealthInfo = XposedHelpers.getObjectField(param.thisObject, "mHealthInfo");
                         if (mHealthInfo == null) return;
 
-                        // READ ONLY - We do not overwrite this!
+                        // Extract the highly privileged system context directly from BatteryService
+                        Context mContext = (Context) XposedHelpers.getObjectField(param.thisObject, "mContext");
+                        if (mContext == null) return;
+
+                        // READ ONLY - We do not overwrite the physical battery data
                         int physicalLevel = XposedHelpers.getIntField(mHealthInfo, "batteryLevel");
                         
                         boolean acOnline = XposedHelpers.getBooleanField(mHealthInfo, "chargerAcOnline");
                         boolean usbOnline = XposedHelpers.getBooleanField(mHealthInfo, "chargerUsbOnline");
                         int plugged = (acOnline || usbOnline) ? 1 : 0;
                         
-                        // Calculate what the UI is showing right now
                         int virtualLevel = remapBattery(physicalLevel);
 
                         if (virtualLevel <= 20) {
@@ -61,10 +64,10 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
                         if (plugged == 0) {
                             if (isSaverTargetOn && appliedSaverState != 1) {
-                                enableBatterySaver();
+                                enableBatterySaver(mContext);
                                 appliedSaverState = 1;
                             } else if (!isSaverTargetOn && appliedSaverState != 0) {
-                                disableBatterySaver();
+                                disableBatterySaver(mContext);
                                 appliedSaverState = 0;
                             }
                         } else {
@@ -96,11 +99,9 @@ public class BatteryHook implements IXposedHookLoadPackage {
                             Bundle extras = intent.getExtras();
                             
                             int plugged = extras != null ? extras.getInt(BatteryManager.EXTRA_PLUGGED, 0) : 0;
-                            
-                            // Here is where we actually spoof the visuals
                             int displayedLevel = remapBattery(originalLevel);
                             
-                            if (originalLevel <= 20) { // Physical 20% limit
+                            if (originalLevel <= 20) { 
                                 if (plugged == 0) {
                                     if (!isShuttingDown) {
                                         isShuttingDown = true;
@@ -131,44 +132,42 @@ public class BatteryHook implements IXposedHookLoadPackage {
     }
 
     // ======================================================================
-    // HELPER METHODS (CLEAN API NO ROOT SHELL)
+    // HELPER METHODS (System Context API)
     // ======================================================================
 
-    private void enableBatterySaver() {
+    private void enableBatterySaver(Context context) {
         try {
-            // Opens a raw root stream that works on Magisk, KernelSU, and any custom ROM
-            Process p = Runtime.getRuntime().exec("su");
-            java.io.DataOutputStream os = new java.io.DataOutputStream(p.getOutputStream());
+            // 1. Official PowerManager API Execution
+            Object powerManager = context.getSystemService(Context.POWER_SERVICE);
+            if (powerManager != null) {
+                XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", true);
+            }
             
-            // Send the commands directly to the kernel
-            os.writeBytes("settings put global low_power 1\n");
-            os.writeBytes("cmd power set-mode 1\n");
-            os.writeBytes("exit\n");
-            os.flush();
-            p.waitFor();
+            // 2. Settings Database Fallback Backup
+            android.provider.Settings.Global.putInt(context.getContentResolver(), "low_power", 1);
             
-            XposedBridge.log("BatteryRemapper: Battery Saver toggled ON via Root Shell.");
+            XposedBridge.log("BatteryRemapper: Battery Saver toggled ON using System Context.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Root Shell Toggle Failed: " + t.getMessage());
+            // This safely catches the "IllegalStateException" during early boot and ignores it
+            XposedBridge.log("BatteryRemapper: Context Toggle Ignored: " + t.getMessage());
         }
     }
 
-    private void disableBatterySaver() {
+    private void disableBatterySaver(Context context) {
         try {
-            Process p = Runtime.getRuntime().exec("su");
-            java.io.DataOutputStream os = new java.io.DataOutputStream(p.getOutputStream());
+            Object powerManager = context.getSystemService(Context.POWER_SERVICE);
+            if (powerManager != null) {
+                XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", false);
+            }
             
-            os.writeBytes("settings put global low_power 0\n");
-            os.writeBytes("cmd power set-mode 0\n");
-            os.writeBytes("exit\n");
-            os.flush();
-            p.waitFor();
+            android.provider.Settings.Global.putInt(context.getContentResolver(), "low_power", 0);
             
-            XposedBridge.log("BatteryRemapper: Battery Saver toggled OFF via Root Shell.");
+            XposedBridge.log("BatteryRemapper: Battery Saver toggled OFF using System Context.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Root Shell Toggle Failed: " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Context Toggle Ignored: " + t.getMessage());
         }
     }
+
     private void startCountdown() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
