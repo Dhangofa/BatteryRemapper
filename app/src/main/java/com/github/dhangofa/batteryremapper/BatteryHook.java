@@ -136,32 +136,39 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
     private void enableBatterySaver() {
         try {
-            Object powerManagerService = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.ServiceManager", null), "getService", "power");
-            Object ipm = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.IPowerManager$Stub", null), "asInterface", powerManagerService);
-
-            XposedHelpers.callMethod(ipm, "setPowerSaveModeEnabled", true);
-            XposedBridge.log("BatteryRemapper: Battery Saver toggled ON via clean API.");
+            // Opens a raw root stream that works on Magisk, KernelSU, and any custom ROM
+            Process p = Runtime.getRuntime().exec("su");
+            java.io.DataOutputStream os = new java.io.DataOutputStream(p.getOutputStream());
+            
+            // Send the commands directly to the kernel
+            os.writeBytes("settings put global low_power 1\n");
+            os.writeBytes("cmd power set-mode 1\n");
+            os.writeBytes("exit\n");
+            os.flush();
+            p.waitFor();
+            
+            XposedBridge.log("BatteryRemapper: Battery Saver toggled ON via Root Shell.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: API Toggle Failed: " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Root Shell Toggle Failed: " + t.getMessage());
         }
     }
 
     private void disableBatterySaver() {
         try {
-            Object powerManagerService = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.ServiceManager", null), "getService", "power");
-            Object ipm = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.IPowerManager$Stub", null), "asInterface", powerManagerService);
-
-            XposedHelpers.callMethod(ipm, "setPowerSaveModeEnabled", false);
-            XposedBridge.log("BatteryRemapper: Battery Saver toggled OFF via clean API.");
+            Process p = Runtime.getRuntime().exec("su");
+            java.io.DataOutputStream os = new java.io.DataOutputStream(p.getOutputStream());
+            
+            os.writeBytes("settings put global low_power 0\n");
+            os.writeBytes("cmd power set-mode 0\n");
+            os.writeBytes("exit\n");
+            os.flush();
+            p.waitFor();
+            
+            XposedBridge.log("BatteryRemapper: Battery Saver toggled OFF via Root Shell.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: API Toggle Failed: " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Root Shell Toggle Failed: " + t.getMessage());
         }
     }
-
     private void startCountdown() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
