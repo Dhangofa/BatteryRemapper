@@ -6,12 +6,16 @@ android {
     namespace = "com.github.dhangofa.batteryremapper"
     compileSdk = 34
 
-    defaultConfig {
+   defaultConfig {
         applicationId = "com.github.dhangofa.batteryremapper"
         minSdk = 29
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        
+        // Dynamic versioning using run_number from CI
+        val runNumber = project.findProperty("versionCode")?.toString()?.toInt() ?: 1
+        
+        versionCode = runNumber
+        versionName = "1.0.$runNumber"
     }
 
     buildTypes {

@@ -1,16 +1,12 @@
-name: Build and Automate LSPosed Module Release
+name: Dev Test Build
+
 on:
   push:
-    branches: [ main ]
-    tags:
-      - 'v*' # Triggers the release block when a tag starting with 'v' is pushed
-  workflow_dispatch:
+    branches: [ "dev" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Crucial permission that allows GitHub Actions to publish releases
 
     steps:
     - name: Checkout Code
@@ -22,9 +18,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    # Using global gradle exactly like your main branch
     - name: Compile Release APK using Gradle
       run: gradle assembleRelease -PversionCode=${{ github.run_number }}
 
+    # Using your exact keystore decoding logic
     - name: Decode Permanent Keystore
       run: |
         cat << 'EOF' > encoded_key.txt
@@ -33,6 +31,7 @@ jobs:
         sed -i '/---/d' encoded_key.txt
         tr -d '\r\n ' < encoded_key.txt | base64 --decode > release.keystore
 
+    # Using your exact signing logic so the dev APK matches production signatures perfectly
     - name: Zipalign and Sign Release APK (V2 Signature)
       run: |
         BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
@@ -41,19 +40,10 @@ jobs:
         
         $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} --out app/build/outputs/apk/release/BatteryRemapper.apk app/build/outputs/apk/release/app-release-aligned.apk
 
-    - name: Upload APK as Build Artifact
+    # Uploads privately to the Actions tab instead of creating a public release
+    - name: Upload Test APK
       uses: actions/upload-artifact@v4
       with:
-        name: BatteryRemapper-Package
+        name: BatteryRemapper-Dev-Test
         path: app/build/outputs/apk/release/BatteryRemapper.apk
         compression-level: 0
-
-    # AUTOMATED DEPLOYMENT STEP
-    - name: Create Public GitHub Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/v') # Ensures this ONLY runs on tag pushes
-      with:
-        files: app/build/outputs/apk/release/BatteryRemapper.apk
-        generate_release_notes: true # Automatically generates a beautiful changelog
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
