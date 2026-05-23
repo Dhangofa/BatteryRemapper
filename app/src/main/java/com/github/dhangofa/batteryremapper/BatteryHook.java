@@ -24,8 +24,8 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private static CountDownTimer shutdownTimer = null;
     
     // Smart State Trackers for the Battery Saver
-    private static boolean isSaverTargetOn = false; // Remembers if saver SHOULD be on
-    private static int appliedSaverState = -1;      // Tracks what we actually sent to the system (1=ON, 0=OFF, -1=Reset)
+    private static boolean isSaverTargetOn = false; 
+    private static int appliedSaverState = -1;      
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
@@ -64,31 +64,31 @@ public class BatteryHook implements IXposedHookLoadPackage {
                                 // FEATURE: SMART HYSTERESIS BATTERY SAVER
                                 int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
                                 
-                                // Step 1: Update the target memory based on thresholds
                                 if (remappedLevel <= 20) {
                                     isSaverTargetOn = true;
                                 } else if (remappedLevel >= 51) {
                                     isSaverTargetOn = false;
                                 }
 
-                                // Step 2: Apply the state ONLY when unplugged
                                 if (plugged == 0) {
                                     if (isSaverTargetOn && appliedSaverState != 1) {
                                         enableBatterySaver();
-                                        appliedSaverState = 1; // Mark as successfully turned ON
+                                        appliedSaverState = 1; 
                                     } else if (!isSaverTargetOn && appliedSaverState != 0) {
                                         disableBatterySaver();
-                                        appliedSaverState = 0; // Mark as successfully turned OFF
+                                        appliedSaverState = 0; 
                                     }
                                 } else {
-                                    // Step 3: When plugged in, reset our tracker. 
-                                    // This ensures that the exact moment you unplug, it re-evaluates and applies.
                                     appliedSaverState = -1;
                                 }
                             }
                         }
                     }
                 });
+                
+                // ADDED BACK: Startup confirmation log for the System Server
+                XposedBridge.log("BatteryRemapper: Android 16 System Server hooked successfully.");
+                
             } catch (Throwable t) {
                 XposedBridge.log("BatteryRemapper Core Hook Failure: " + t.getMessage());
             }
@@ -113,7 +113,6 @@ public class BatteryHook implements IXposedHookLoadPackage {
                             int plugged = extras != null ? extras.getInt(BatteryManager.EXTRA_PLUGGED, 0) : 0;
                             int displayedLevel = remapBattery(originalLevel);
                             
-                            // SHUTDOWN COUNTDOWN TRIGGER
                             if (originalLevel <= 20) {
                                 if (plugged == 0) {
                                     if (!isShuttingDown) {
@@ -135,6 +134,10 @@ public class BatteryHook implements IXposedHookLoadPackage {
                         }
                     }
                 });
+                
+                // ADDED BACK: Startup confirmation log for the System UI
+                XposedBridge.log("BatteryRemapper: System UI hooked with 30s Countdown Feature!");
+                
             } catch (Throwable t) {
                 XposedBridge.log("BatteryRemapper UI Hook Critical Failure: " + t.getMessage());
             }
@@ -145,21 +148,47 @@ public class BatteryHook implements IXposedHookLoadPackage {
     // HELPER METHODS
     // ======================================================================
 
-    private void enableBatterySaver() {
+	private void enableBatterySaver() {
         try {
-            Runtime.getRuntime().exec("cmd power set-mode 1");
-            XposedBridge.log("BatteryRemapper: Battery Saver automatically enabled via system shell.");
+            // Get the PowerManager service via the system context
+            Object powerManagerService = XposedHelpers.callStaticMethod(
+                XposedHelpers.findClass("android.os.ServiceManager", null), 
+                "getService", 
+                "power"
+            );
+            
+            Object powerManager = XposedHelpers.callStaticMethod(
+                XposedHelpers.findClass("android.os.IPowerManager$Stub", null), 
+                "asInterface", 
+                powerManagerService
+            );
+
+            // Directly call the internal setPowerSaveModeEnabled method
+            XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", true);
+            XposedBridge.log("BatteryRemapper: Battery Saver enabled via internal PowerManager API.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Failed to execute battery saver shell command - " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: PowerManager API failed - " + t.getMessage());
         }
     }
 
     private void disableBatterySaver() {
         try {
-            Runtime.getRuntime().exec("cmd power set-mode 0");
-            XposedBridge.log("BatteryRemapper: Battery Saver automatically disabled via system shell.");
+            Object powerManagerService = XposedHelpers.callStaticMethod(
+                XposedHelpers.findClass("android.os.ServiceManager", null), 
+                "getService", 
+                "power"
+            );
+            
+            Object powerManager = XposedHelpers.callStaticMethod(
+                XposedHelpers.findClass("android.os.IPowerManager$Stub", null), 
+                "asInterface", 
+                powerManagerService
+            );
+
+            XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", false);
+            XposedBridge.log("BatteryRemapper: Battery Saver disabled via internal PowerManager API.");
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Failed to disable battery saver - " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Failed to disable saver via API - " + t.getMessage());
         }
     }
 
