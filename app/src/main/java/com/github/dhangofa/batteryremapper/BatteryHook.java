@@ -150,45 +150,27 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
 	private void enableBatterySaver() {
         try {
-            // Get the PowerManager service via the system context
-            Object powerManagerService = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.ServiceManager", null), 
-                "getService", 
-                "power"
-            );
-            
-            Object powerManager = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.IPowerManager$Stub", null), 
-                "asInterface", 
-                powerManagerService
-            );
-
-            // Directly call the internal setPowerSaveModeEnabled method
-            XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", true);
-            XposedBridge.log("BatteryRemapper: Battery Saver enabled via internal PowerManager API.");
+            // Get the Context from the ActivityManagerService hook
+            // Note: In handleLoadPackage, you can store the Context when the hook is initialized
+            Context context = AndroidAppHelper.currentApplication();
+            if (context != null) {
+                android.provider.Settings.Global.putInt(context.getContentResolver(), "low_power", 1);
+                XposedBridge.log("BatteryRemapper: Battery Saver enabled via Settings.Global database.");
+            }
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: PowerManager API failed - " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Database Power Toggle Failed - " + t.getMessage());
         }
     }
 
     private void disableBatterySaver() {
         try {
-            Object powerManagerService = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.ServiceManager", null), 
-                "getService", 
-                "power"
-            );
-            
-            Object powerManager = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.IPowerManager$Stub", null), 
-                "asInterface", 
-                powerManagerService
-            );
-
-            XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", false);
-            XposedBridge.log("BatteryRemapper: Battery Saver disabled via internal PowerManager API.");
+            Context context = AndroidAppHelper.currentApplication();
+            if (context != null) {
+                android.provider.Settings.Global.putInt(context.getContentResolver(), "low_power", 0);
+                XposedBridge.log("BatteryRemapper: Battery Saver disabled via Settings.Global database.");
+            }
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper: Failed to disable saver via API - " + t.getMessage());
+            XposedBridge.log("BatteryRemapper: Database Power Toggle Failed - " + t.getMessage());
         }
     }
 
