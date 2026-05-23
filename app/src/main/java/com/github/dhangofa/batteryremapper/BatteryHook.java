@@ -33,62 +33,53 @@ public class BatteryHook implements IXposedHookLoadPackage {
         // ------------------------------------------------------------------
         // HOOK 1: SYSTEM SERVER (android)
         // ------------------------------------------------------------------
-        if (lpparam.packageName.equals("android")) {
+       if (lpparam.packageName.equals("android")) {
             try {
-                Class<?> amsClass = XposedHelpers.findClass("com.android.server.am.ActivityManagerService", lpparam.classLoader);
+                // Hook the BatteryService class directly
+                Class<?> batteryServiceClass = XposedHelpers.findClass("com.android.server.BatteryService", lpparam.classLoader);
                 
-                XposedBridge.hookAllMethods(amsClass, "broadcastIntent", new XC_MethodHook() {
+                // processValuesLocked is the method that updates battery status internally
+                XposedBridge.hookAllMethods(batteryServiceClass, "processValuesLocked", new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        if (param.args == null || param.args.length < 2) return;
+                        // Get the BatteryProperties object (the 3rd argument in the method)
+                        Object mBatteryProps = param.args[2]; 
+                        
+                        // Reflection to get the current level from BatteryProperties
+                        int originalLevel = (int) XposedHelpers.getIntField(mBatteryProps, "batteryLevel");
+                        int plugged = (int) XposedHelpers.getIntField(mBatteryProps, "chargerAcOnline") == 1 ? 1 : 0;
+                        if (plugged == 0) plugged = (int) XposedHelpers.getIntField(mBatteryProps, "chargerUsbOnline") == 1 ? 2 : 0;
 
-                        Intent intent = null;
-                        if (param.args[1] instanceof Intent) {
-                            intent = (Intent) param.args[1];
-                        } else {
-                            for (Object arg : param.args) {
-                                if (arg instanceof Intent) {
-                                    intent = (Intent) arg;
-                                    break;
-                                }
-                            }
+                        int remappedLevel = remapBattery(originalLevel);
+                        
+                        // DEBUG LOG
+                        XposedBridge.log("BatteryRemapper-Debug: BatteryService processed. Physical:" + originalLevel + " Remapped:" + remappedLevel);
+
+                        // Overwrite the level
+                        XposedHelpers.setIntField(mBatteryProps, "batteryLevel", remappedLevel);
+
+                        // FEATURE: TRIGGER SAVER
+                        if (remappedLevel <= 20) {
+                            isSaverTargetOn = true;
+                        } else if (remappedLevel >= 51) {
+                            isSaverTargetOn = false;
                         }
 
-                        if (intent != null && Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
-                            int originalLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-                            if (originalLevel != -1) {
-                                int remappedLevel = remapBattery(originalLevel);
-                                
-                                intent.putExtra(BatteryManager.EXTRA_LEVEL, remappedLevel);
-
-                                // FEATURE: SMART HYSTERESIS BATTERY SAVER
-                                int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
-                                
-                                if (remappedLevel <= 20) {
-                                    isSaverTargetOn = true;
-                                } else if (remappedLevel >= 51) {
-                                    isSaverTargetOn = false;
-                                }
-
-                                if (plugged == 0) {
-                                    if (isSaverTargetOn && appliedSaverState != 1) {
-                                        enableBatterySaver();
-                                        appliedSaverState = 1; 
-                                    } else if (!isSaverTargetOn && appliedSaverState != 0) {
-                                        disableBatterySaver();
-                                        appliedSaverState = 0; 
-                                    }
-                                } else {
-                                    appliedSaverState = -1;
-                                }
+                        if (plugged == 0) {
+                            if (isSaverTargetOn && appliedSaverState != 1) {
+                                enableBatterySaver();
+                                appliedSaverState = 1;
+                            } else if (!isSaverTargetOn && appliedSaverState != 0) {
+                                disableBatterySaver();
+                                appliedSaverState = 0;
                             }
+                        } else {
+                            appliedSaverState = -1;
                         }
                     }
                 });
                 
-                // ADDED BACK: Startup confirmation log for the System Server
-                XposedBridge.log("BatteryRemapper: Android 16 System Server hooked successfully.");
-                
+                XposedBridge.log("BatteryRemapper: BatteryService hooked successfully.");
             } catch (Throwable t) {
                 XposedBridge.log("BatteryRemapper Core Hook Failure: " + t.getMessage());
             }
