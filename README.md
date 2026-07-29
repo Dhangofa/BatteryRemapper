@@ -58,7 +58,9 @@ Because the module maps a 60-point physical range into a 100-point display range
 
 * **Environment Requirement:** Functioning Zygisk environment via Magisk or KernelSU.
 * **Framework Requirement:** LSPosed / Vector Framework.
-* **Target Architecture:** Verified on modern **Android 16** AOSP architectures (specifically tested on custom implementations like **Evolution X** and **crDroid** builds).
+* **Target Architecture:** Tested on:
+  * **AOSP ROMS**: CrDroid, Evolution X, Infinity X, Axion AOSP
+  * **Stock ROMS**: MIUI, HyperOS. Hopefully will work on other devices.
 * **ROM Compatibility:** Fully compatible with heavily modified status bar engines that deploy custom battery styles like Circles, Dotted Icons, Landscape pills, and Text indicators.
 
 ---
