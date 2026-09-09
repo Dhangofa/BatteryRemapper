@@ -51,6 +51,7 @@
             android:id="@+id/appVersionText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
             android:background="@drawable/shape_pill_badge"
             android:fontFamily="sans-serif-medium"
             android:gravity="center"
@@ -62,6 +63,17 @@
             android:text="@string/app_version_default"
             android:textColor="@color/brand_on_container"
             android:textSize="12sp" />
+        <ImageButton
+            android:id="@+id/btnRefreshSystemUi"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/shape_refresh_button"
+            android:contentDescription="@string/restart_system_ui"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_refresh"
+            android:tint="@null"
+            android:tooltipText="@string/restart_system_ui" />
     </LinearLayout>
 
     <ScrollView
