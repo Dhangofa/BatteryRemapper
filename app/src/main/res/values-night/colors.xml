@@ -8,6 +8,7 @@
     <color name="text_primary">#F1EFE7</color>
     <color name="text_secondary">#B9BBAA</color>
     <color name="status_text_secondary">#D2C7AA</color>
+    
     <!-- Modern compact switch -->
     <color name="switch_track_off">#363830</color>
     <color name="switch_track_border">#85877D</color>
@@ -16,4 +17,12 @@
     <color name="switch_track_disabled">#303229</color>
     <color name="switch_border_disabled">#55574E</color>
     <color name="switch_thumb_disabled">#74766D</color>
+
+    <!-- SystemUI hook status -->
+    <color name="status_checking">#BCAE88</color>
+    <color name="status_active">#BBC092</color>
+    <color name="status_inactive">#999A91</color>
+    <color name="status_card_checking">#5C563F</color>
+    <color name="status_card_active">#42472E</color>
+    <color name="status_card_inactive">#35372F</color>
 </resources>
