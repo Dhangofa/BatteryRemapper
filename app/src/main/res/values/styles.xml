@@ -51,13 +51,18 @@
         name="Widget.BatteryRemapper.Switch"
         parent="@android:style/Widget.Material.CompoundButton.Switch">
     
-        <item name="android:layout_width">50dp</item>
+        <!-- Allow Android to calculate sufficient drawable width -->
+        <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">48dp</item>
     
-        <item name="android:switchMinWidth">50dp</item>
+        <!-- Minimum control width, including thumb movement -->
+        <item name="android:minWidth">58dp</item>
+        <item name="android:switchMinWidth">58dp</item>
+    
         <item name="android:switchPadding">0dp</item>
         <item name="android:thumbTextPadding">0dp</item>
     
+        <item name="android:gravity">center_vertical</item>
         <item name="android:showText">false</item>
         <item name="android:splitTrack">false</item>
     
@@ -68,6 +73,7 @@
         <item name="android:trackTint">@null</item>
         <item name="android:buttonTint">@null</item>
     
+        <!-- The complete card remains the touch target -->
         <item name="android:clickable">false</item>
         <item name="android:focusable">false</item>
     
