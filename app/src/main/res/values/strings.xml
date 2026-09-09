@@ -6,8 +6,14 @@
     <string name="app_version_format">v%1$s</string>
 
     <string name="section_status">SYSTEMUI STATUS</string>
-    <string name="status_pending_title">Status check not configured</string>
-    <string name="status_pending_description">SystemUI hook detection will be connected in the next implementation step.</string>
+    <!-- SystemUI hook status -->
+    <string name="status_checking_title">Checking SystemUI</string>
+    <string name="status_checking_description">Waiting for the BatteryRemapper hook to respond…</string>
+    <string name="status_active_title">BatteryRemapper is active</string>
+    <string name="status_active_description">SystemUI is hooked and responding.</string>
+    <string name="status_inactive_title">SystemUI hook not detected</string>
+    <string name="status_inactive_description">Enable BatteryRemapper in LSPosed, select System UI in the module scope, then use the refresh button above.</string>
+    <string name="status_tap_to_check">Tap the card to check again.</string>
 
     <string name="section_remapping">REMAPPING</string>
     <string name="remapper_title">Battery remapping</string>
