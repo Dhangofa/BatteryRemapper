@@ -20,6 +20,11 @@ public class MainActivity extends Activity {
     private final CompoundButton.OnCheckedChangeListener remapperListener =
             (buttonView, isChecked) -> {
                 appPreferences.setRemapperEnabled(isChecked);
+    
+                if (!isChecked) {
+                    resetAutomationControls();
+                }
+    
                 updateChildControls(isChecked);
             };
 
@@ -51,10 +56,27 @@ public class MainActivity extends Activity {
     }
 
     private void restorePreferences() {
-        remapperSwitch.setChecked(appPreferences.isRemapperEnabled());
-        batterySaverSwitch.setChecked(appPreferences.isBatterySaverEnabled());
-        autoShutdownSwitch.setChecked(appPreferences.isAutoShutdownEnabled());
-        updateChildControls(remapperSwitch.isChecked());
+        boolean remapperEnabled = appPreferences.isRemapperEnabled();
+    
+        remapperSwitch.setChecked(remapperEnabled);
+    
+        if (remapperEnabled) {
+            batterySaverSwitch.setChecked(
+                    appPreferences.isBatterySaverEnabled()
+            );
+    
+            autoShutdownSwitch.setChecked(
+                    appPreferences.isAutoShutdownEnabled()
+            );
+        } else {
+            batterySaverSwitch.setChecked(false);
+            autoShutdownSwitch.setChecked(false);
+    
+            appPreferences.setBatterySaverEnabled(false);
+            appPreferences.setAutoShutdownEnabled(false);
+        }
+    
+        updateChildControls(remapperEnabled);
     }
 
     private void attachListeners() {
@@ -73,6 +95,14 @@ public class MainActivity extends Activity {
         autoShutdownCard.setOnClickListener(view -> {
             if (autoShutdownSwitch.isEnabled()) autoShutdownSwitch.toggle();
         });
+    }
+
+    private void resetAutomationControls() {
+        batterySaverSwitch.setChecked(false);
+        autoShutdownSwitch.setChecked(false);
+    
+        appPreferences.setBatterySaverEnabled(false);
+        appPreferences.setAutoShutdownEnabled(false);
     }
 
     private void updateChildControls(boolean masterEnabled) {
