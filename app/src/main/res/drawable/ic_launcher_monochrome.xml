@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+        Monochrome BatteryRemapper symbol.
+
+        The actual color is supplied by the Android launcher.
+        Keep this drawable single-color and free from shadows,
+        highlights, gradients, and background shapes.
+    -->
+
+    <!-- Broad-to-compact remapping symbol -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M31,20
+            C28,20 26,22.5 27,25.5
+            L36.5,58
+            C37.8,62.5 41.5,65 46,65
+            C46,68 44,71 40,74
+            H41
+            C38,74 36,76.5 36.5,79.5
+            L39,88
+            C39.7,91 42,93 45,93
+            H63
+            C66,93 68.3,91 69,88
+            L71.5,79.5
+            C72,76.5 70,74 67,74
+            H68
+            C64,71 62,68 62,65
+            C66.5,65 70.2,62.5 71.5,58
+            L81,25.5
+            C82,22.5 80,20 77,20
+            Z" />
+
+</vector>
