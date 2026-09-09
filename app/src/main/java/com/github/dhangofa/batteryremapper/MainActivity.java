@@ -28,7 +28,6 @@ import android.os.Looper;
 import android.widget.TextView;
 
 import java.util.UUID;
-`
 
 public class MainActivity extends Activity {
 
