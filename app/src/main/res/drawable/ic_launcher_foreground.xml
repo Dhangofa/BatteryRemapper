@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+        BatteryRemapper adaptive launcher foreground
+
+        Contains only the remapping symbol.
+        The olive background is supplied separately through
+        ic_launcher_background.xml.
+    -->
+
+    <!--
+        Combined symbol shadow.
+        Slightly lower than the main symbol to create restrained depth.
+    -->
+    <path
+        android:fillColor="#8043482D"
+        android:pathData="M31,24
+            C28,24 26,26.5 27,29.5
+            L37,62
+            C38,65.5 41,68 44,69
+            L44,75
+            L40,75
+            C37,75 35,77.5 35.5,80.5
+            L38,91
+            C38.7,94 41,96 44,96
+            H64
+            C67,96 69.3,94 70,91
+            L72.5,80.5
+            C73,77.5 71,75 68,75
+            H64
+            V69
+            C67,68 70,65.5 71,62
+            L81,29.5
+            C82,26.5 80,24 77,24
+            Z" />
+
+    <!-- Wide upper remapping section -->
+    <path
+        android:fillColor="#E2D2AE"
+        android:pathData="M31,20
+            C28,20 26,22.5 27,25.5
+            L36.5,58
+            C37.8,62.5 41.5,65 46,65
+            H62
+            C66.5,65 70.2,62.5 71.5,58
+            L81,25.5
+            C82,22.5 80,20 77,20
+            Z" />
+
+    <!-- Upper surface highlight -->
+    <path
+        android:fillColor="#40FFFFFF"
+        android:pathData="M32,22
+            H76
+            C78,22 79,23.5 78.5,25
+            L77.5,28
+            H30.5
+            L29.5,25
+            C29,23.5 30,22 32,22
+            Z" />
+
+    <!-- Transition waist -->
+    <path
+        android:fillColor="#E2D2AE"
+        android:pathData="M46,63
+            H62
+            C62,68 64,71 68,74
+            H40
+            C44,71 46,68 46,63
+            Z" />
+
+    <!-- Compact lower section shadow -->
+    <path
+        android:fillColor="#6043482D"
+        android:pathData="M41,75
+            H67
+            C70,75 72,77.5 71.5,80.5
+            L69,91
+            C68.3,94 66,96 63,96
+            H45
+            C42,96 39.7,94 39,91
+            L36.5,80.5
+            C36,77.5 38,75 41,75
+            Z" />
+
+    <!-- Compact lower section -->
+    <path
+        android:fillColor="#E2D2AE"
+        android:pathData="M41,72
+            H67
+            C70,72 72,74.5 71.5,77.5
+            L69,88
+            C68.3,91 66,93 63,93
+            H45
+            C42,93 39.7,91 39,88
+            L36.5,77.5
+            C36,74.5 38,72 41,72
+            Z" />
+
+    <!-- Lower surface highlight -->
+    <path
+        android:fillColor="#35FFFFFF"
+        android:pathData="M41,74
+            H67
+            C68.5,74 69.5,75 69.5,76
+            H38.5
+            C38.5,75 39.5,74 41,74
+            Z" />
+
+</vector>
