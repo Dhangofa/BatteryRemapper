@@ -376,6 +376,60 @@ public class BatteryHook implements IXposedHookLoadPackage {
             );
         }
     }
+
+    private void registerSettingsReceiver(Context context) {
+        if (context == null || settingsReceiverRegistered) {
+            return;
+        }
+    
+        try {
+            IntentFilter filter =
+                    new IntentFilter(ACTION_SETTINGS_CHANGED);
+    
+            BroadcastReceiver receiver =
+                    new BroadcastReceiver() {
+                        @Override
+                        public void onReceive(
+                                Context receiverContext,
+                                Intent intent
+                        ) {
+                            if (intent == null
+                                    || !ACTION_SETTINGS_CHANGED.equals(
+                                            intent.getAction()
+                                    )) {
+                                return;
+                            }
+    
+                            loadSettings(receiverContext);
+                        }
+                    };
+    
+            if (Build.VERSION.SDK_INT
+                    >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(
+                        receiver,
+                        filter,
+                        Context.RECEIVER_EXPORTED
+                );
+            } else {
+                context.registerReceiver(
+                        receiver,
+                        filter
+                );
+            }
+    
+            settingsReceiverRegistered = true;
+    
+            XposedBridge.log(
+                    "BatteryRemapper: Settings receiver registered."
+            );
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper Settings Receiver Failure: "
+                            + t.getMessage()
+            );
+        }
+    }
     
     private void registerStatusReceiver(Context context) {
         if (statusReceiverRegistered || context == null) {
