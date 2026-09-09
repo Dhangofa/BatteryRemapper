@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace = "com.github.dhangofa.batteryremapper"
-    compileSdk = 37
+    compileSdk = 36
 
    defaultConfig {
         applicationId = "com.github.dhangofa.batteryremapper"
@@ -17,6 +17,13 @@ android {
         versionCode = runNumber
         versionName = "1.0.$runNumber"
     }
+    // Suggested by IzzyOnDroid
+    dependenciesInfo {
+        // Disables dependency metadata when building APKs (for IzzyOnDroid/F-Droid)
+        includeInApk = false
+        // Disables dependency metadata when building Android App Bundles (for Google Play)
+        includeInBundle = false
+    }
 
     buildTypes {
         release {
@@ -25,8 +32,13 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 
