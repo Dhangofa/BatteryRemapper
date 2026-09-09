@@ -14,6 +14,7 @@ import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.WindowManager;
+import android.net.Uri;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -33,6 +34,22 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private static final String EXTRA_HOOK_ACTIVE = MODULE_PACKAGE + ".extra.HOOK_ACTIVE";
     private static final String EXTRA_HOOKED_PACKAGE = MODULE_PACKAGE + ".extra.HOOKED_PACKAGE";
     private static boolean statusReceiverRegistered = false;
+
+    private static final String ACTION_SETTINGS_CHANGED = MODULE_PACKAGE + ".action.SETTINGS_CHANGED";
+    private static final Uri SETTINGS_URI =
+            Uri.parse(
+                    "content://"
+                            + MODULE_PACKAGE
+                            + ".settings"
+            );
+    private static final String METHOD_GET_SETTINGS = "get_settings";
+    private static final String RESULT_REMAPPER_ENABLED = "remapper_enabled";
+    private static final String RESULT_BATTERY_SAVER_ENABLED = "battery_saver_enabled";
+    private static final String RESULT_AUTO_SHUTDOWN_ENABLED = "auto_shutdown_enabled";
+    private static volatile boolean remapperEnabled = true;
+    private static volatile boolean batterySaverEnabled = true;
+    private static volatile boolean autoShutdownEnabled = false;
+    private static boolean settingsReceiverRegistered = false;
     
     // -1 = Neutral/Unknown, 0 = Force OFF, 1 = Force ON
     private static int appliedSaverState = -1;      
@@ -52,9 +69,9 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) {
-                            Application application =
-                                    (Application) param.thisObject;
-        
+                            Application application = (Application) param.thisObject;
+                            loadSettings(application);
+                            registerSettingsReceiver(application);
                             registerStatusReceiver(application);
                         }
                     }
@@ -74,22 +91,54 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     
                     if (BatteryManager.EXTRA_LEVEL.equals(key)) {
                         int originalLevel = (Integer) param.getResult();
+                        /*
+                         * The master toggle controls visual remapping and all child
+                         * automation. When disabled, leave the original result unchanged.
+                         */
+                        if (!remapperEnabled) {
+                            return;
+                        }
+                        
                         Intent intent = (Intent) param.thisObject;
+                        
                         Bundle extras = intent.getExtras();
                         
-                        int plugged = (extras != null) ? extras.getInt(BatteryManager.EXTRA_PLUGGED, 0) : 0;
+                        int plugged =
+                                extras != null
+                                        ? extras.getInt(
+                                                BatteryManager.EXTRA_PLUGGED,
+                                                0
+                                        )
+                                        : 0;
+                        
                         int displayedLevel = remapBattery(originalLevel);
                         Context context = AndroidAppHelper.currentApplication();
-
-                        // 1. BATTERY SAVER HYSTERESIS LOGIC
-                        if (context != null) {
-                            handleBatterySaverLogic(context, displayedLevel, plugged);
-                        }
-
-                        // 2. SHUTDOWN TIMER LOGIC (Based on physical level)
-                        handleShutdownLogic(originalLevel, plugged);
                         
-                        // 3. APPLY VISUAL SPOOF
+                        /*
+                         * Battery Saver automation is controlled independently after
+                         * the master Battery Remapping feature is enabled.
+                         */
+                        if (batterySaverEnabled && context != null) {
+                            handleBatterySaverLogic(
+                                    context,
+                                    displayedLevel,
+                                    plugged
+                            );
+                        }
+                        
+                        /*
+                         * Shutdown decisions always use the physical battery level.
+                         */
+                        if (autoShutdownEnabled) {
+                            handleShutdownLogic(
+                                    originalLevel,
+                                    plugged
+                            );
+                        }
+                        
+                        /*
+                         * Replace the value returned to SystemUI with the remapped value.
+                         */
                         param.setResult(displayedLevel);
                     }
                 }
@@ -237,6 +286,97 @@ public class BatteryHook implements IXposedHookLoadPackage {
         return Math.round((float)(physicalLevel - 20) * 100f / 60f);
     }
 
+    private void loadSettings(Context context) {
+        if (context == null) {
+            return;
+        }
+    
+        try {
+            Bundle result =
+                    context.getContentResolver().call(
+                            SETTINGS_URI,
+                            METHOD_GET_SETTINGS,
+                            null,
+                            null
+                    );
+    
+            if (result == null) {
+                XposedBridge.log(
+                        "BatteryRemapper: Settings provider returned no data."
+                );
+    
+                return;
+            }
+    
+            boolean newRemapperEnabled =
+                    result.getBoolean(
+                            RESULT_REMAPPER_ENABLED,
+                            true
+                    );
+    
+            boolean newBatterySaverEnabled =
+                    newRemapperEnabled
+                            && result.getBoolean(
+                                    RESULT_BATTERY_SAVER_ENABLED,
+                                    true
+                            );
+    
+            boolean newAutoShutdownEnabled =
+                    newRemapperEnabled
+                            && result.getBoolean(
+                                    RESULT_AUTO_SHUTDOWN_ENABLED,
+                                    false
+                            );
+    
+            boolean saverWasEnabled = batterySaverEnabled;
+            boolean shutdownWasEnabled = autoShutdownEnabled;
+            remapperEnabled = newRemapperEnabled;
+            batterySaverEnabled = newBatterySaverEnabled;
+            autoShutdownEnabled = newAutoShutdownEnabled;
+    
+            /*
+             * Reset the internal Saver cache when automation is disabled.
+             * BatteryRemapper does not force the actual system Saver state.
+             */
+            if (saverWasEnabled && !batterySaverEnabled) {
+                appliedSaverState = -1;
+            }
+    
+            /*
+             * Turning Automatic Shutdown OFF must immediately cancel
+             * any active shutdown countdown.
+             */
+            if (shutdownWasEnabled && !autoShutdownEnabled) {
+                cancelCountdown();
+            }
+    
+            /*
+             * The master preference should normally change only across
+             * a SystemUI restart, but keep cleanup defensive.
+             */
+            if (!remapperEnabled) {
+                appliedSaverState = -1;
+                cancelCountdown();
+            }
+    
+            XposedBridge.log(
+                    "BatteryRemapper: Settings loaded"
+                            + " [remapper="
+                            + remapperEnabled
+                            + ", saver="
+                            + batterySaverEnabled
+                            + ", shutdown="
+                            + autoShutdownEnabled
+                            + "]"
+            );
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper Settings Load Failure: "
+                            + t.getMessage()
+            );
+        }
+    }
+    
     private void registerStatusReceiver(Context context) {
         if (statusReceiverRegistered || context == null) {
             return;
