@@ -20,6 +20,16 @@
     <string name="auto_shutdown_description">Starts a 30-second shutdown countdown when the physical battery reaches 20%. Charging cancels it.</string>
     <string name="settings_note">Settings are saved locally. Hook integration is intentionally not included in this UI-only patch.</string>
 
+    <string name="restart_system_ui">Restart SystemUI</string>
+
+    <string name="restart_system_ui_title">Restart SystemUI?</string>
+    <string name="restart_system_ui_message">The status bar, Quick Settings, and lock screen will temporarily disappear while SystemUI restarts. Root access is required.</string>
+    <string name="restart_system_ui_confirm">Restart</string>
+    <string name="restart_system_ui_cancel">Cancel</string>
+    <string name="restart_system_ui_started">Restarting SystemUI…</string>
+    <string name="restart_system_ui_failed">Unable to restart SystemUI. Make sure root access was granted.</string>
+    <string name="restart_system_ui_busy">SystemUI restart is already in progress.</string>
+
     <string-array name="xposedscope">
         <item>com.android.systemui</item>
     </string-array>
