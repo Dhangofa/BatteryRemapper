@@ -1,48 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- Application -->
     <string name="app_name">BatteryRemapper</string>
-    <string name="app_subtitle">Battery scale controller</string>
+    <string name="app_subtitle">Smarter battery range control</string>
     <string name="app_version_default">v1.0</string>
     <string name="app_version_format">v%1$s</string>
 
-    <string name="section_status">SYSTEMUI STATUS</string>
+
     <!-- SystemUI hook status -->
-    <string name="status_checking_title">Checking SystemUI</string>
-    <string name="status_checking_description">Waiting for the BatteryRemapper hook to respond…</string>
-    <string name="status_active_title">BatteryRemapper is active</string>
-    <string name="status_active_description">SystemUI is hooked and responding.</string>
-    <string name="status_inactive_title">SystemUI hook not detected</string>
-    <string name="status_inactive_description">Enable BatteryRemapper in LSPosed, select System UI in the module scope, then use the refresh button above.</string>
-    <string name="status_tap_to_check">Tap the card to check again.</string>
+    <string name="section_status">MODULE STATUS</string>
 
-    <string name="section_remapping">REMAPPING</string>
-    <string name="remapper_title">Battery remapping</string>
-    <string name="remapper_description">Maps the physical 20–80% battery range into a displayed 0–100% scale.</string>
+    <string name="status_checking_title">Checking module status</string>
+    <string name="status_checking_description">Waiting for the BatteryRemapper hook inside System UI to respond…</string>
 
-    <string name="section_automation">AUTOMATION</string>
-    <string name="battery_saver_title">Battery Saver automation</string>
-    <string name="battery_saver_description">Turns Battery Saver on at 20% displayed level, off above 50%, and keeps it off while charging.</string>
-    <string name="auto_shutdown_title">Automatic shutdown</string>
-    <string name="auto_shutdown_description">Starts a 30-second shutdown countdown when the physical battery reaches 20%. Charging cancels it.</string>
-    <string name="settings_note">Settings are saved locally. Hook integration is intentionally not included in this UI-only patch.</string>
+    <string name="status_active_title">BatteryRemapper is working</string>
+    <string name="status_active_description">The module is loaded and responding inside System UI.</string>
 
-    <string name="restart_system_ui">Restart SystemUI</string>
+    <string name="status_inactive_title">System UI hook not detected</string>
+    <string name="status_inactive_description">Enable BatteryRemapper in LSPosed, select System UI in the module scope, and then restart System UI using the refresh button above.</string>
 
-    <string name="restart_system_ui_title">Restart SystemUI?</string>
-    <string name="restart_system_ui_message">The status bar, Quick Settings, UI, and lock screen will temporarily disappear while SystemUI restarts. Root access is required.</string>
+    <string name="status_tap_to_check">Tap this card to check again.</string>
+
+
+    <!-- Battery remapping -->
+    <string name="section_remapping">BATTERY REMAPPING</string>
+
+    <string name="remapper_title">Enable battery remapping</string>
+    <string name="remapper_description">Displays the physical 20–80% battery range as 0–100%. Turn this off to show the original battery percentage.</string>
+
+
+    <!-- Automation -->
+    <string name="section_automation">OPTIONAL AUTOMATION</string>
+
+    <string name="battery_saver_title">Automatic Battery Saver</string>
+    <string name="battery_saver_description">Turns Battery Saver on at 20% displayed battery and turns it off above 50%. Battery Saver remains off while charging.</string>
+
+    <string name="auto_shutdown_title">Low-battery shutdown</string>
+    <string name="auto_shutdown_description">Starts a 30-second shutdown countdown at 20% physical battery. Connecting a charger cancels the countdown.</string>
+
+    <string name="settings_note">Battery Saver and shutdown automation are available only while battery remapping is enabled.</string>
+
+
+    <!-- Manual SystemUI restart -->
+    <string name="restart_system_ui">Restart System UI</string>
+
+    <string name="restart_system_ui_title">Restart System UI?</string>
+    <string name="restart_system_ui_message">The status bar, Quick Settings, notifications, and lock screen controls may disappear briefly while System UI restarts. Root access is required.</string>
+
     <string name="restart_system_ui_confirm">Restart</string>
     <string name="restart_system_ui_cancel">Cancel</string>
-    <string name="restart_system_ui_started">Restarting SystemUI…</string>
-    <string name="restart_system_ui_failed">Unable to restart SystemUI. Make sure root access was granted.</string>
-    <string name="restart_system_ui_busy">SystemUI restart is already in progress.</string>
 
-    <string name="system_ui_refresh_required_title">SystemUI refresh required</string>
-    <string name="remapper_enabled_refresh_message">Battery remapping has been enabled. Refresh SystemUI to apply the remapped battery percentage.</string>
-    <string name="remapper_disabled_refresh_message">Battery remapping has been disabled. Refresh SystemUI to restore the physical battery percentage.</string>
-    <string name="restart_system_ui_now">Refresh now</string>
+    <string name="restart_system_ui_started">Restarting System UI…</string>
+    <string name="restart_system_ui_failed">System UI could not be restarted. Make sure root access was granted, then try again.</string>
+    <string name="restart_system_ui_busy">A System UI restart is already in progress.</string>
+
+
+    <!-- Main-toggle refresh prompt -->
+    <string name="system_ui_refresh_required_title">Restart required</string>
+
+    <string name="remapper_enabled_refresh_message">Battery remapping is now enabled. Restart System UI to apply the remapped percentage.</string>
+
+    <string name="remapper_disabled_refresh_message">Battery remapping is now disabled. Restart System UI to restore the original battery percentage.</string>
+
+    <string name="restart_system_ui_now">Restart now</string>
     <string name="restart_system_ui_later">Later</string>
 
+
+    <!-- Recommended LSPosed scope -->
     <string-array name="xposedscope">
         <item>com.android.systemui</item>
     </string-array>
+
 </resources>
