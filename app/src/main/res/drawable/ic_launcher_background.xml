@@ -5,25 +5,18 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!--
-        Full adaptive-icon background.
-
-        Do not add rounded corners here.
-        The launcher applies its own icon mask.
-    -->
-
     <!-- Full olive background -->
     <path
         android:fillColor="#73784B"
         android:pathData="M0,0H108V108H0Z" />
 
-    <!-- Subtle pastel-sand background overlay -->
+    <!-- Subtle sand overlay across the upper background -->
     <path
         android:fillColor="#18E2D2AE"
         android:pathData="M0,0
             H108
             V58
-            C84,46 55,42 0,55
+            C83,46 56,42 0,55
             Z" />
 
 </vector>
