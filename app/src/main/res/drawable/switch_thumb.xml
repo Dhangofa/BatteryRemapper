@@ -1,37 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Disabled thumb -->
+    <!-- Disabled -->
     <item android:state_enabled="false">
-        <shape android:shape="oval">
-            <size
-                android:width="24dp"
-                android:height="24dp" />
+        <layer-list>
+            <item
+                android:width="28dp"
+                android:height="28dp">
 
-            <solid android:color="@color/switch_thumb_disabled" />
-        </shape>
+                <shape android:shape="rectangle">
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+
+            <item
+                android:left="4dp"
+                android:top="4dp"
+                android:right="4dp"
+                android:bottom="4dp">
+
+                <shape android:shape="oval">
+                    <solid android:color="@color/switch_thumb_disabled" />
+
+                    <size
+                        android:width="20dp"
+                        android:height="20dp" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
 
-    <!-- Checked thumb -->
+    <!-- Checked -->
     <item android:state_checked="true">
-        <shape android:shape="oval">
-            <size
-                android:width="24dp"
-                android:height="24dp" />
+        <layer-list>
+            <item
+                android:width="28dp"
+                android:height="28dp">
 
-            <solid android:color="@color/switch_thumb_on" />
-        </shape>
+                <shape android:shape="rectangle">
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+
+            <item
+                android:left="4dp"
+                android:top="4dp"
+                android:right="4dp"
+                android:bottom="4dp">
+
+                <shape android:shape="oval">
+                    <solid android:color="@color/switch_thumb_on" />
+
+                    <size
+                        android:width="20dp"
+                        android:height="20dp" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
 
-    <!-- Unchecked thumb -->
+    <!-- Unchecked -->
     <item>
-        <shape android:shape="oval">
-            <size
-                android:width="24dp"
-                android:height="24dp" />
+        <layer-list>
+            <item
+                android:width="28dp"
+                android:height="28dp">
 
-            <solid android:color="@color/switch_thumb_off" />
-        </shape>
+                <shape android:shape="rectangle">
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+
+            <item
+                android:left="4dp"
+                android:top="4dp"
+                android:right="4dp"
+                android:bottom="4dp">
+
+                <shape android:shape="oval">
+                    <solid android:color="@color/switch_thumb_off" />
+
+                    <size
+                        android:width="20dp"
+                        android:height="20dp" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
 
 </selector>
