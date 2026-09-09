@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+        Modern olive-to-pastel-sand background.
+        The radial layer creates a subtle depth effect behind the emblem.
+    -->
+    <path
+        android:pathData="M20,4H88A16,16 0,0 1,104 20V88A16,16 0,0 1,88 104H20A16,16 0,0 1,4 88V20A16,16 0,0 1,20 4Z">
+
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="16"
+                android:startY="10"
+                android:endX="96"
+                android:endY="100"
+                android:type="linear">
+
+                <item
+                    android:color="#FF656A3F"
+                    android:offset="0.0" />
+
+                <item
+                    android:color="#FF949469"
+                    android:offset="0.48" />
+
+                <item
+                    android:color="#FFE2CEAA"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Soft lavender ambient illumination -->
+    <path
+        android:fillColor="#32C2AFE4"
+        android:pathData="M72,7C90,7 102,19 102,37C102,52 91,63 76,63C60,63 50,51 50,37C50,21 58,7 72,7Z" />
+
+    <!-- Warm orange ambient illumination -->
+    <path
+        android:fillColor="#30F28A4F"
+        android:pathData="M8,68C8,52 19,43 34,43C48,43 58,54 58,69C58,85 47,99 31,99C17,99 8,86 8,68Z" />
+
+    <!--
+        ORBIT SHADOW
+        Offset slightly downward to simulate elevation.
+    -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M29,73C18,59 20,39 33,26C46,13 67,12 82,23C88,28 92,34 94,41"
+        android:strokeColor="#7841452E"
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!--
+        MAIN PHYSICAL-RANGE ORBIT
+        The incomplete orbit represents the controlled 20–80% window.
+    -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M27,69C18,54 22,35 36,24C51,12 72,15 84,28C88,32 91,37 92,42"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="23"
+                android:startY="70"
+                android:endX="94"
+                android:endY="20"
+                android:type="linear">
+
+                <item
+                    android:color="#FFF0D8B1"
+                    android:offset="0.0" />
+
+                <item
+                    android:color="#FFE8D1AA"
+                    android:offset="0.48" />
+
+                <item
+                    android:color="#FFD8C4E8"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Fine highlight on top of the orbit -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M28,64C23,50 27,36 39,27C50,18 65,18 76,24"
+        android:strokeColor="#70FFF4DF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round" />
+
+    <!--
+        REMAPPING RIBBON SHADOW
+        The ribbon widens as it rises, showing expansion from
+        the physical range into the displayed range.
+    -->
+    <path
+        android:fillColor="#533F422E"
+        android:pathData="M29,79C37,68 43,58 49,47C55,36 62,27 72,18L83,28C73,36 67,44 62,54C56,66 50,76 42,88Z" />
+
+    <!-- Main orange-to-lavender remapping ribbon -->
+    <path
+        android:pathData="M27,76C35,66 41,56 47,45C54,33 61,24 72,15L84,26C74,34 67,42 61,52C55,64 49,74 40,85Z">
+
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="30"
+                android:startY="81"
+                android:endX="79"
+                android:endY="18"
+                android:type="linear">
+
+                <item
+                    android:color="#FFF18A4F"
+                    android:offset="0.0" />
+
+                <item
+                    android:color="#FFE49A73"
+                    android:offset="0.38" />
+
+                <item
+                    android:color="#FFB6A0DA"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Remapping ribbon edge highlight -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M31,75C39,64 44,54 50,44C56,33 63,25 73,18"
+        android:strokeColor="#78FFF1DE"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round" />
+
+    <!--
+        CENTRAL CALIBRATION CORE SHADOW
+    -->
+    <path
+        android:fillColor="#6B3E422D"
+        android:pathData="M43,54A13,13 0,1 0,69 54A13,13 0,1 0,43 54Z" />
+
+    <!-- Central olive calibration core -->
+    <path
+        android:pathData="M41,51A13,13 0,1 0,67 51A13,13 0,1 0,41 51Z">
+
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="49"
+                android:centerY="44"
+                android:gradientRadius="20"
+                android:type="radial">
+
+                <item
+                    android:color="#FFB1B580"
+                    android:offset="0.0" />
+
+                <item
+                    android:color="#FF777C4A"
+                    android:offset="0.55" />
+
+                <item
+                    android:color="#FF4D512F"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Core glass highlight -->
+    <path
+        android:fillColor="#7AFFF4DA"
+        android:pathData="M46,45C48,41 53,39 57,41C59,42 60,44 60,46C56,44 51,44 46,47Z" />
+
+    <!-- Orange lower-range terminal shadow -->
+    <path
+        android:fillColor="#7043422F"
+        android:pathData="M21,79A9,9 0,1 0,39 79A9,9 0,1 0,21 79Z" />
+
+    <!-- Orange lower-range terminal -->
+    <path
+        android:pathData="M20,76A9,9 0,1 0,38 76A9,9 0,1 0,20 76Z">
+
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="26"
+                android:centerY="71"
+                android:gradientRadius="13"
+                android:type="radial">
+
+                <item
+                    android:color="#FFFFBE83"
+                    android:offset="0.0" />
+
+                <item
+                    android:color="#FFF18A4F"
+                    android:offset="0.55" />
+
+                <item
+                    android:color="#FFC85E31"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Lower terminal highlight -->
+    <path
+        android:fillColor="#99FFF2D7"
+        android:pathData="M24,72A3.2,2.5 0,1 0,30.4 72A3.2,2.5 0,1 0,24 72Z" />
+
+    <!-- Lavender upper-range terminal shadow -->
+    <path
+        android:fillColor="#66404430"
+        android:pathData="M75,17A11,11 0,1 0,97 17A11,11 0,1 0,75 17Z" />
+
+    <!-- Lavender upper-range terminal -->
+    <path
+        android:pathData="M74,14A11,11 0,1 0,96 14A11,11 0,1 0,74 14Z">
+
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="81"
+                android:centerY="8"
+                android:gradientRadius="16"
+                android:type="radial">
+
+                <item
+                    android:color="#FFE6D9F6"
+                    android:offset="0.0" />
+
+                <item
+                    android:color="#FFB6A0DA"
+                    android:offset="0.55" />
+
+                <item
+                    android:color="#FF8972B5"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Upper terminal highlight -->
+    <path
+        android:fillColor="#A8FFF8ED"
+        android:pathData="M79,9A4,3 0,1 0,87 9A4,3 0,1 0,79 9Z" />
+
+</vector>
