@@ -29,12 +29,18 @@
     <string name="restart_system_ui">Restart SystemUI</string>
 
     <string name="restart_system_ui_title">Restart SystemUI?</string>
-    <string name="restart_system_ui_message">The status bar, Quick Settings, and lock screen will temporarily disappear while SystemUI restarts. Root access is required.</string>
+    <string name="restart_system_ui_message">The status bar, Quick Settings, UI, and lock screen will temporarily disappear while SystemUI restarts. Root access is required.</string>
     <string name="restart_system_ui_confirm">Restart</string>
     <string name="restart_system_ui_cancel">Cancel</string>
     <string name="restart_system_ui_started">Restarting SystemUI…</string>
     <string name="restart_system_ui_failed">Unable to restart SystemUI. Make sure root access was granted.</string>
     <string name="restart_system_ui_busy">SystemUI restart is already in progress.</string>
+
+    <string name="system_ui_refresh_required_title">SystemUI refresh required</string>
+    <string name="remapper_enabled_refresh_message">Battery remapping has been enabled. Refresh SystemUI to apply the remapped battery percentage.</string>
+    <string name="remapper_disabled_refresh_message">Battery remapping has been disabled. Refresh SystemUI to restore the physical battery percentage.</string>
+    <string name="restart_system_ui_now">Refresh now</string>
+    <string name="restart_system_ui_later">Later</string>
 
     <string-array name="xposedscope">
         <item>com.android.systemui</item>
