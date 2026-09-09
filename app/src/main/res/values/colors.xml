@@ -8,7 +8,12 @@
     <color name="text_primary">#292B21</color>
     <color name="text_secondary">#67695D</color>
     <color name="status_text_secondary">#62654A</color>
-    <color name="switch_track_off">#B9BAAF</color>
-    <color name="switch_thumb_off">#F4F1E8</color>
-    <color name="switch_disabled">#9A9B91</color>
+    <!-- Modern compact switch -->
+    <color name="switch_track_off">#F0F0ED</color>
+    <color name="switch_track_border">#888A82</color>
+    <color name="switch_thumb_off">#65675F</color>
+    <color name="switch_thumb_on">#E2D2AE</color>
+    <color name="switch_track_disabled">#E1E1DC</color>
+    <color name="switch_border_disabled">#BABBB3</color>
+    <color name="switch_thumb_disabled">#A5A69E</color>
 </resources>
