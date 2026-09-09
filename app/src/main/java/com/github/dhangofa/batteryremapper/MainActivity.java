@@ -16,19 +16,48 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.TextView;
+
+import java.util.UUID;
+`
+
 public class MainActivity extends Activity {
 
+    private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
+    private static final String MODULE_PACKAGE = "com.github.dhangofa.batteryremapper";
+    private static final String ACTION_PROBE_HOOK = MODULE_PACKAGE + ".action.PROBE_SYSTEMUI_HOOK";
+    private static final String ACTION_HOOK_STATUS = MODULE_PACKAGE + ".action.SYSTEMUI_HOOK_STATUS";
+    private static final String EXTRA_REQUEST_ID = MODULE_PACKAGE + ".extra.REQUEST_ID";
+    private static final String EXTRA_HOOK_ACTIVE = MODULE_PACKAGE + ".extra.HOOK_ACTIVE";
+    private static final String EXTRA_HOOKED_PACKAGE = MODULE_PACKAGE + ".extra.HOOKED_PACKAGE";
+    private static final long HOOK_STATUS_TIMEOUT_MS = 1500L;
+
+    private View hookStatusCard;
+    private View hookStatusDot;
+    private TextView hookStatusTitle;
+    private TextView hookStatusDescription;
+    private final Handler statusHandler = new Handler(Looper.getMainLooper());
+    private boolean statusReceiverRegistered = false;
+    private String activeStatusRequestId;
+    
     private AppPreferences appPreferences;
     private Switch remapperSwitch;
     private Switch batterySaverSwitch;
     private Switch autoShutdownSwitch;
     private View batterySaverCard;
     private View autoShutdownCard;
+    
     private ImageButton refreshSystemUiButton;
-    
-    private final ExecutorService commandExecutor =
-            Executors.newSingleThreadExecutor();
-    
+    private final ExecutorService commandExecutor = Executors.newSingleThreadExecutor();
     private volatile boolean isSystemUiRestarting = false;
 
     private final CompoundButton.OnCheckedChangeListener remapperListener =
@@ -48,10 +77,76 @@ public class MainActivity extends Activity {
     private final CompoundButton.OnCheckedChangeListener autoShutdownListener =
             (buttonView, isChecked) -> appPreferences.setAutoShutdownEnabled(isChecked);
 
+    private final BroadcastReceiver hookStatusReceiver =
+        new BroadcastReceiver() {
+            @Override
+            public void onReceive(
+                    Context context,
+                    Intent intent
+            ) {
+                if (intent == null
+                        || !ACTION_HOOK_STATUS.equals(
+                                intent.getAction()
+                        )) {
+                    return;
+                }
+
+                String responseRequestId =
+                        intent.getStringExtra(EXTRA_REQUEST_ID);
+
+                if (activeStatusRequestId == null
+                        || !activeStatusRequestId.equals(
+                                responseRequestId
+                        )) {
+                    return;
+                }
+
+                boolean hookActive = intent.getBooleanExtra(
+                        EXTRA_HOOK_ACTIVE,
+                        false
+                );
+
+                String hookedPackage = intent.getStringExtra(
+                        EXTRA_HOOKED_PACKAGE
+                );
+
+                if (!hookActive
+                        || !SYSTEM_UI_PACKAGE.equals(hookedPackage)) {
+                    return;
+                }
+
+                statusHandler.removeCallbacks(
+                        hookStatusTimeoutRunnable
+                );
+
+                activeStatusRequestId = null;
+                showHookActive();
+            }
+        };
+
+    private final Runnable hookStatusTimeoutRunnable = () -> {
+        if (activeStatusRequestId == null) {
+            return;
+        }
+    
+        activeStatusRequestId = null;
+        showHookInactive();
+    };
+
+    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        hookStatusCard = findViewById(R.id.cardHookStatus);
+        hookStatusDot = findViewById(R.id.hookStatusDot);
+        hookStatusTitle = findViewById(R.id.hookStatusTitle);
+        hookStatusDescription = findViewById(R.id.hookStatusDescription);
+        hookStatusCard.setOnClickListener(
+                view -> checkSystemUiHook()
+        );
 
         appPreferences = new AppPreferences(this);
 
@@ -81,6 +176,164 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+    
+        registerHookStatusReceiver();
+        checkSystemUiHook();
+    }
+
+    @Override
+    protected void onStop() {
+        statusHandler.removeCallbacks(
+                hookStatusTimeoutRunnable
+        );
+    
+        activeStatusRequestId = null;
+        unregisterHookStatusReceiver();
+    
+        super.onStop();
+    }
+
+    private void registerHookStatusReceiver() {
+        if (statusReceiverRegistered) {
+            return;
+        }
+    
+        IntentFilter filter =
+                new IntentFilter(ACTION_HOOK_STATUS);
+    
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(
+                    hookStatusReceiver,
+                    filter,
+                    Context.RECEIVER_EXPORTED
+            );
+        } else {
+            registerReceiver(
+                    hookStatusReceiver,
+                    filter
+            );
+        }
+    
+        statusReceiverRegistered = true;
+    }
+
+    private void unregisterHookStatusReceiver() {
+        if (!statusReceiverRegistered) {
+            return;
+        }
+    
+        try {
+            unregisterReceiver(hookStatusReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // Receiver was already removed by the system.
+        }
+    
+        statusReceiverRegistered = false;
+    }
+
+    private void checkSystemUiHook() {
+        statusHandler.removeCallbacks(
+                hookStatusTimeoutRunnable
+        );
+    
+        activeStatusRequestId =
+                UUID.randomUUID().toString();
+    
+        showHookChecking();
+    
+        Intent probeIntent =
+                new Intent(ACTION_PROBE_HOOK);
+    
+        // Restrict delivery to a receiver inside SystemUI.
+        probeIntent.setPackage(SYSTEM_UI_PACKAGE);
+    
+        probeIntent.putExtra(
+                EXTRA_REQUEST_ID,
+                activeStatusRequestId
+        );
+    
+        try {
+            sendBroadcast(probeIntent);
+    
+            statusHandler.postDelayed(
+                    hookStatusTimeoutRunnable,
+                    HOOK_STATUS_TIMEOUT_MS
+            );
+        } catch (Throwable ignored) {
+            activeStatusRequestId = null;
+            showHookInactive();
+        }
+    }
+
+    private void showHookChecking() {
+        hookStatusTitle.setText(
+                R.string.status_checking_title
+        );
+    
+        hookStatusDescription.setText(
+                R.string.status_checking_description
+        );
+    
+        applyStatusColors(
+                R.color.status_checking,
+                R.color.status_card_checking
+        );
+    }
+
+    private void showHookActive() {
+        hookStatusTitle.setText(
+                R.string.status_active_title
+        );
+    
+        hookStatusDescription.setText(
+                R.string.status_active_description
+        );
+    
+        applyStatusColors(
+                R.color.status_active,
+                R.color.status_card_active
+        );
+    }
+
+    private void showHookInactive() {
+        hookStatusTitle.setText(
+                R.string.status_inactive_title
+        );
+    
+        hookStatusDescription.setText(
+                getString(
+                        R.string.status_inactive_description
+                ) + "\n" + getString(
+                        R.string.status_tap_to_check
+                )
+        );
+    
+        applyStatusColors(
+                R.color.status_inactive,
+                R.color.status_card_inactive
+        );
+    }
+
+    private void applyStatusColors(
+            int dotColorResource,
+            int cardColorResource
+    ) {
+        hookStatusDot.setBackgroundTintList(
+                ColorStateList.valueOf(
+                        getColor(dotColorResource)
+                )
+        );
+    
+        hookStatusCard.setBackgroundTintList(
+                ColorStateList.valueOf(
+                        getColor(cardColorResource)
+                )
+        );
+    }
+    
     private void restorePreferences() {
         boolean remapperEnabled = appPreferences.isRemapperEnabled();
     
