@@ -117,9 +117,16 @@ public class BatteryHook implements IXposedHookLoadPackage {
                             }
         
                             /*
-                             * EXTRA_LEVEL is a generic string key named "level".
-                             * Process it only when it belongs to the real sticky
-                             * ACTION_BATTERY_CHANGED broadcast.
+                             * When BatteryRemapper is disabled, leave Android's
+                             * original battery value completely untouched.
+                             */
+                            if (!remapperEnabled) {
+                                return;
+                            }
+        
+                            /*
+                             * EXTRA_LEVEL is a generic key named "level".
+                             * Process it only for ACTION_BATTERY_CHANGED.
                              */
                             Object thisObject = param.thisObject;
         
@@ -136,8 +143,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
                             }
         
                             /*
-                             * Read and validate the original result before allowing
-                             * it to reach remapping, Battery Saver, or shutdown logic.
+                             * Validate Android's original result.
                              */
                             Object result = param.getResult();
         
@@ -147,11 +153,6 @@ public class BatteryHook implements IXposedHookLoadPackage {
         
                             int originalLevel = (Integer) result;
         
-                            /*
-                             * A missing EXTRA_LEVEL can return the caller's default,
-                             * commonly -1. Never interpret an invalid/default value
-                             * as a depleted physical battery.
-                             */
                             if (originalLevel < 0 || originalLevel > 100) {
                                 XposedBridge.log(
                                         "BatteryRemapper: Ignored invalid battery "
@@ -179,7 +180,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
                                     AndroidAppHelper.currentApplication();
         
                             // 1. BATTERY SAVER HYSTERESIS LOGIC
-                            if (context != null) {
+                            if (batterySaverEnabled && context != null) {
                                 handleBatterySaverLogic(
                                         context,
                                         displayedLevel,
@@ -188,10 +189,12 @@ public class BatteryHook implements IXposedHookLoadPackage {
                             }
         
                             // 2. SHUTDOWN TIMER LOGIC (Based on physical level)
-                            handleShutdownLogic(
-                                    originalLevel,
-                                    plugged
-                            );
+                            if (autoShutdownEnabled) {
+                                handleShutdownLogic(
+                                        originalLevel,
+                                        plugged
+                                );
+                            }
         
                             // 3. APPLY VISUAL SPOOF
                             param.setResult(displayedLevel);
@@ -204,8 +207,8 @@ public class BatteryHook implements IXposedHookLoadPackage {
             );
         } catch (Throwable t) {
             /*
-             * Allow a later load callback to retry if hook installation itself
-             * failed before the method interceptor was installed.
+             * Allow a later load callback to retry if hook installation
+             * failed before the interceptor was installed.
              */
             batteryHookInstalled.set(false);
         
