@@ -1,0 +1,118 @@
+name: Update Gradle Wrapper for BatteryRemapper
+
+run-name: Update Gradle Wrapper to ${{ inputs.gradle_version || '8.11.1' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      gradle_version:
+        description: "Gradle version to update to"
+        required: false
+        default: "8.11.1"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-wrapper:
+    name: Update Gradle Wrapper
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v5
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: ${{ inputs.gradle_version || '8.11.1' }}
+          cache-provider: basic
+
+      - name: Validate Gradle Version Input
+        env:
+          GRADLE_VERSION: ${{ inputs.gradle_version || '8.11.1' }}
+        run: |
+          if ! printf '%s' "$GRADLE_VERSION" \
+            | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?([.-][A-Za-z0-9]+)*$'; then
+            echo "Invalid Gradle version: $GRADLE_VERSION"
+            exit 1
+          fi
+
+      - name: Fetch Official Gradle Checksum
+        id: checksum
+        env:
+          GRADLE_VERSION: ${{ inputs.gradle_version || '8.11.1' }}
+        run: |
+          CHECKSUM_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip.sha256"
+
+          SHA256="$(curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            "$CHECKSUM_URL" \
+            | tr -d '[:space:]')"
+
+          if ! printf '%s' "$SHA256" | grep -Eq '^[a-fA-F0-9]{64}$'; then
+            echo "Invalid checksum received for Gradle ${GRADLE_VERSION}"
+            exit 1
+          fi
+
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "Gradle ${GRADLE_VERSION} checksum: $SHA256"
+
+      - name: Generate Gradle Wrapper
+        env:
+          GRADLE_VERSION: ${{ inputs.gradle_version || '8.11.1' }}
+          GRADLE_SHA256: ${{ steps.checksum.outputs.sha256 }}
+        run: |
+          gradle wrapper \
+            --gradle-version "$GRADLE_VERSION" \
+            --distribution-type bin \
+            --gradle-distribution-sha256-sum "$GRADLE_SHA256"
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x ./gradlew
+
+      - name: Verify Generated Gradle Wrapper
+        run: |
+          ./gradlew --version
+          test -f gradlew
+          test -f gradlew.bat
+          test -f gradle/wrapper/gradle-wrapper.jar
+          test -f gradle/wrapper/gradle-wrapper.properties
+
+          grep -F \
+            "distributionSha256Sum=${{ steps.checksum.outputs.sha256 }}" \
+            gradle/wrapper/gradle-wrapper.properties
+
+      - name: Commit Gradle Wrapper Changes
+        env:
+          GRADLE_VERSION: ${{ inputs.gradle_version || '8.11.1' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            gradlew \
+            gradlew.bat \
+            gradle/wrapper/gradle-wrapper.jar \
+            gradle/wrapper/gradle-wrapper.properties
+
+          if git diff --cached --quiet; then
+            echo "No Gradle Wrapper changes to commit."
+          else
+            git commit \
+              -m "build(gradle): update wrapper to ${GRADLE_VERSION}"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
