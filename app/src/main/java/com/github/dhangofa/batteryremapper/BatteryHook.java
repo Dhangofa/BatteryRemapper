@@ -16,6 +16,8 @@ import android.os.Looper;
 import android.view.WindowManager;
 import android.net.Uri;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -27,6 +29,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private static boolean isShuttingDown = false;
     private static AlertDialog shutdownDialog = null;
     private static CountDownTimer shutdownTimer = null;
+    private static final AtomicBoolean batteryHookInstalled = new AtomicBoolean(false);
     private static final String MODULE_PACKAGE = "com.github.dhangofa.batteryremapper";
     private static final String ACTION_PROBE_HOOK = MODULE_PACKAGE + ".action.PROBE_SYSTEMUI_HOOK";
     private static final String ACTION_HOOK_STATUS = MODULE_PACKAGE + ".action.SYSTEMUI_HOOK_STATUS";
@@ -83,69 +86,132 @@ public class BatteryHook implements IXposedHookLoadPackage {
             );
         }
 
+        if (!batteryHookInstalled.compareAndSet(false, true)) {
+            XposedBridge.log(
+                    "BatteryRemapper: Battery hook already installed; "
+                            + "duplicate installation skipped."
+            );
+        
+            return;
+        }
+        
         try {
-            XposedHelpers.findAndHookMethod(Intent.class, "getIntExtra", String.class, int.class, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    String key = (String) param.args[0];
-                    
-                    if (BatteryManager.EXTRA_LEVEL.equals(key)) {
-                        int originalLevel = (Integer) param.getResult();
-                        /*
-                         * The master toggle controls visual remapping and all child
-                         * automation. When disabled, leave the original result unchanged.
-                         */
-                        if (!remapperEnabled) {
-                            return;
-                        }
-                        
-                        Intent intent = (Intent) param.thisObject;
-                        
-                        Bundle extras = intent.getExtras();
-                        
-                        int plugged =
-                                extras != null
-                                        ? extras.getInt(
-                                                BatteryManager.EXTRA_PLUGGED,
-                                                0
-                                        )
-                                        : 0;
-                        
-                        int displayedLevel = remapBattery(originalLevel);
-                        Context context = AndroidAppHelper.currentApplication();
-                        
-                        /*
-                         * Battery Saver automation is controlled independently after
-                         * the master Battery Remapping feature is enabled.
-                         */
-                        if (batterySaverEnabled && context != null) {
-                            handleBatterySaverLogic(
-                                    context,
-                                    displayedLevel,
-                                    plugged
-                            );
-                        }
-                        
-                        /*
-                         * Shutdown decisions always use the physical battery level.
-                         */
-                        if (autoShutdownEnabled) {
+            XposedHelpers.findAndHookMethod(
+                    Intent.class,
+                    "getIntExtra",
+                    String.class,
+                    int.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(
+                                MethodHookParam param
+                        ) throws Throwable {
+                            /*
+                             * Intent.getIntExtra() is used extensively throughout
+                             * SystemUI. Ignore every key except the battery level.
+                             */
+                            String key = (String) param.args[0];
+        
+                            if (!BatteryManager.EXTRA_LEVEL.equals(key)) {
+                                return;
+                            }
+        
+                            /*
+                             * EXTRA_LEVEL is a generic string key named "level".
+                             * Process it only when it belongs to the real sticky
+                             * ACTION_BATTERY_CHANGED broadcast.
+                             */
+                            Object thisObject = param.thisObject;
+        
+                            if (!(thisObject instanceof Intent)) {
+                                return;
+                            }
+        
+                            Intent intent = (Intent) thisObject;
+        
+                            if (!Intent.ACTION_BATTERY_CHANGED.equals(
+                                    intent.getAction()
+                            )) {
+                                return;
+                            }
+        
+                            /*
+                             * Read and validate the original result before allowing
+                             * it to reach remapping, Battery Saver, or shutdown logic.
+                             */
+                            Object result = param.getResult();
+        
+                            if (!(result instanceof Integer)) {
+                                return;
+                            }
+        
+                            int originalLevel = (Integer) result;
+        
+                            /*
+                             * A missing EXTRA_LEVEL can return the caller's default,
+                             * commonly -1. Never interpret an invalid/default value
+                             * as a depleted physical battery.
+                             */
+                            if (originalLevel < 0 || originalLevel > 100) {
+                                XposedBridge.log(
+                                        "BatteryRemapper: Ignored invalid battery "
+                                                + "level: "
+                                                + originalLevel
+                                );
+        
+                                return;
+                            }
+        
+                            Bundle extras = intent.getExtras();
+        
+                            int plugged =
+                                    extras != null
+                                            ? extras.getInt(
+                                                    BatteryManager.EXTRA_PLUGGED,
+                                                    0
+                                            )
+                                            : 0;
+        
+                            int displayedLevel =
+                                    remapBattery(originalLevel);
+        
+                            Context context =
+                                    AndroidAppHelper.currentApplication();
+        
+                            // 1. BATTERY SAVER HYSTERESIS LOGIC
+                            if (context != null) {
+                                handleBatterySaverLogic(
+                                        context,
+                                        displayedLevel,
+                                        plugged
+                                );
+                            }
+        
+                            // 2. SHUTDOWN TIMER LOGIC (Based on physical level)
                             handleShutdownLogic(
                                     originalLevel,
                                     plugged
                             );
+        
+                            // 3. APPLY VISUAL SPOOF
+                            param.setResult(displayedLevel);
                         }
-                        
-                        /*
-                         * Replace the value returned to SystemUI with the remapped value.
-                         */
-                        param.setResult(displayedLevel);
                     }
-                }
-            });
-            XposedBridge.log("BatteryRemapper: System UI Hooked Successfully.");
+            );
+        
+            XposedBridge.log(
+                    "BatteryRemapper: System UI Hooked Successfully."
+            );
         } catch (Throwable t) {
-            XposedBridge.log("BatteryRemapper Error: " + t.getMessage());
+            /*
+             * Allow a later load callback to retry if hook installation itself
+             * failed before the method interceptor was installed.
+             */
+            batteryHookInstalled.set(false);
+        
+            XposedBridge.log(
+                    "BatteryRemapper Error: " + t.getMessage()
+            );
         }
     }
 
