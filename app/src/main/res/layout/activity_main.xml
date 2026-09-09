@@ -102,11 +102,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:background="@drawable/shape_status_card"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:padding="16dp">
 
                 <View
+                    android:id="@+id/hookStatusDot"
                     android:layout_width="10dp"
                     android:layout_height="10dp"
                     android:layout_marginEnd="14dp"
@@ -119,19 +123,21 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/hookStatusTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="@string/status_pending_title"
+                        android:text="@string/status_checking_title"
                         android:textColor="@color/brand_on_container"
                         android:textSize="15sp" />
 
                     <TextView
+                        android:id="@+id/hookStatusDescription"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:lineSpacingExtra="2dp"
-                        android:text="@string/status_pending_description"
+                        android:text="@string/status_checking_description"
                         android:textColor="@color/status_text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
