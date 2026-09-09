@@ -1,5 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">BatteryRemapper</string>
+    <string name="app_subtitle">Battery scale controller</string>
+    <string name="app_version_default">v1.0</string>
+    <string name="app_version_format">v%1$s</string>
+
+    <string name="section_status">SYSTEMUI STATUS</string>
+    <string name="status_pending_title">Status check not configured</string>
+    <string name="status_pending_description">SystemUI hook detection will be connected in the next implementation step.</string>
+
+    <string name="section_remapping">REMAPPING</string>
+    <string name="remapper_title">Battery remapping</string>
+    <string name="remapper_description">Maps the physical 20–80% battery range into a displayed 0–100% scale.</string>
+
+    <string name="section_automation">AUTOMATION</string>
+    <string name="battery_saver_title">Battery Saver automation</string>
+    <string name="battery_saver_description">Turns Battery Saver on at 20% displayed level, off above 50%, and keeps it off while charging.</string>
+    <string name="auto_shutdown_title">Automatic shutdown</string>
+    <string name="auto_shutdown_description">Starts a 30-second shutdown countdown when the physical battery reaches 20%. Charging cancels it.</string>
+    <string name="settings_note">Settings are saved locally. Hook integration is intentionally not included in this UI-only patch.</string>
+
     <string-array name="xposedscope">
         <item>com.android.systemui</item>
     </string-array>
