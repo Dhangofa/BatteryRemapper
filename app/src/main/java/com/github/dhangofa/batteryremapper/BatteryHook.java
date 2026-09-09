@@ -2,9 +2,13 @@ package com.github.dhangofa.batteryremapper;
 
 import android.app.AlertDialog;
 import android.app.AndroidAppHelper;
+import android.app.Application;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
@@ -22,6 +26,13 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private static boolean isShuttingDown = false;
     private static AlertDialog shutdownDialog = null;
     private static CountDownTimer shutdownTimer = null;
+    private static final String MODULE_PACKAGE = "com.github.dhangofa.batteryremapper";
+    private static final String ACTION_PROBE_HOOK = MODULE_PACKAGE + ".action.PROBE_SYSTEMUI_HOOK";
+    private static final String ACTION_HOOK_STATUS = MODULE_PACKAGE + ".action.SYSTEMUI_HOOK_STATUS";
+    private static final String EXTRA_REQUEST_ID = MODULE_PACKAGE + ".extra.REQUEST_ID";
+    private static final String EXTRA_HOOK_ACTIVE = MODULE_PACKAGE + ".extra.HOOK_ACTIVE";
+    private static final String EXTRA_HOOKED_PACKAGE = MODULE_PACKAGE + ".extra.HOOKED_PACKAGE";
+    private static boolean statusReceiverRegistered = false;
     
     // -1 = Neutral/Unknown, 0 = Force OFF, 1 = Force ON
     private static int appliedSaverState = -1;      
@@ -33,6 +44,27 @@ public class BatteryHook implements IXposedHookLoadPackage {
         // HOOK: SYSTEM UI - Visuals, Hysteresis Saver, & Shutdown Timer
         // ------------------------------------------------------------------
         if (!lpparam.packageName.equals("com.android.systemui")) return;
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                    Application.class,
+                    "onCreate",
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            Application application =
+                                    (Application) param.thisObject;
+        
+                            registerStatusReceiver(application);
+                        }
+                    }
+            );
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper Status Receiver Error: "
+                            + t.getMessage()
+            );
+        }
 
         try {
             XposedHelpers.findAndHookMethod(Intent.class, "getIntExtra", String.class, int.class, new XC_MethodHook() {
@@ -203,5 +235,84 @@ public class BatteryHook implements IXposedHookLoadPackage {
         if (physicalLevel <= 20) return 0;
         if (physicalLevel >= 80) return 100;
         return Math.round((float)(physicalLevel - 20) * 100f / 60f);
+    }
+
+    private void registerStatusReceiver(Context context) {
+        if (statusReceiverRegistered || context == null) {
+            return;
+        }
+    
+        try {
+            IntentFilter filter = new IntentFilter(ACTION_PROBE_HOOK);
+    
+            BroadcastReceiver receiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(
+                        Context receiverContext,
+                        Intent intent
+                ) {
+                    if (intent == null
+                            || !ACTION_PROBE_HOOK.equals(
+                                    intent.getAction()
+                            )) {
+                        return;
+                    }
+    
+                    String requestId = intent.getStringExtra(
+                            EXTRA_REQUEST_ID
+                    );
+    
+                    if (requestId == null || requestId.isEmpty()) {
+                        return;
+                    }
+    
+                    Intent response = new Intent(ACTION_HOOK_STATUS);
+    
+                    // Deliver only to the BatteryRemapper app.
+                    response.setPackage(MODULE_PACKAGE);
+    
+                    response.putExtra(
+                            EXTRA_REQUEST_ID,
+                            requestId
+                    );
+    
+                    response.putExtra(
+                            EXTRA_HOOK_ACTIVE,
+                            true
+                    );
+    
+                    response.putExtra(
+                            EXTRA_HOOKED_PACKAGE,
+                            "com.android.systemui"
+                    );
+    
+                    receiverContext.sendBroadcast(response);
+                }
+            };
+    
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(
+                        receiver,
+                        filter,
+                        Context.RECEIVER_EXPORTED
+                );
+            } else {
+                context.registerReceiver(
+                        receiver,
+                        filter
+                );
+            }
+    
+            statusReceiverRegistered = true;
+    
+            XposedBridge.log(
+                    "BatteryRemapper: Status receiver registered."
+            );
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper Status Receiver Failure: "
+                            + t.getMessage()
+            );
+        }
     }
 }
