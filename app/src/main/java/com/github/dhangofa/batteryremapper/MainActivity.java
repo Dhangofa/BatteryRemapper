@@ -21,11 +21,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.widget.TextView;
 
 import java.util.UUID;
 
@@ -39,6 +37,9 @@ public class MainActivity extends Activity {
     private static final String EXTRA_HOOK_ACTIVE = MODULE_PACKAGE + ".extra.HOOK_ACTIVE";
     private static final String EXTRA_HOOKED_PACKAGE = MODULE_PACKAGE + ".extra.HOOKED_PACKAGE";
     private static final long HOOK_STATUS_TIMEOUT_MS = 1500L;
+
+    private static final String ACTION_SETTINGS_CHANGED = MODULE_PACKAGE + ".action.SETTINGS_CHANGED";
+    private boolean suppressToggleCallbacks = false;
 
     private View hookStatusCard;
     private View hookStatusDot;
@@ -61,21 +62,41 @@ public class MainActivity extends Activity {
 
     private final CompoundButton.OnCheckedChangeListener remapperListener =
             (buttonView, isChecked) -> {
-                appPreferences.setRemapperEnabled(isChecked);
-    
-                if (!isChecked) {
-                    resetAutomationControls();
+                if (suppressToggleCallbacks) {
+                    return;
                 }
     
-                updateChildControls(isChecked);
+                if (isChecked) {
+                    appPreferences.setRemapperEnabled(true);
+                    updateChildControls(true);
+                } else {
+                    appPreferences.disableAllFeatures();
+                    resetAutomationControls();
+                    updateChildControls(false);
+                }
+    
+                showRemapperRefreshRequiredDialog(isChecked);
             };
-
+    
     private final CompoundButton.OnCheckedChangeListener batterySaverListener =
-            (buttonView, isChecked) -> appPreferences.setBatterySaverEnabled(isChecked);
-
+            (buttonView, isChecked) -> {
+                if (suppressToggleCallbacks) {
+                    return;
+                }
+    
+                appPreferences.setBatterySaverEnabled(isChecked);
+                notifySystemUiSettingsChanged();
+            };
+    
     private final CompoundButton.OnCheckedChangeListener autoShutdownListener =
-            (buttonView, isChecked) -> appPreferences.setAutoShutdownEnabled(isChecked);
-
+            (buttonView, isChecked) -> {
+                if (suppressToggleCallbacks) {
+                    return;
+                }
+    
+                appPreferences.setAutoShutdownEnabled(isChecked);
+                notifySystemUiSettingsChanged();
+            };
     private final BroadcastReceiver hookStatusReceiver =
         new BroadcastReceiver() {
             @Override
@@ -334,24 +355,28 @@ public class MainActivity extends Activity {
     }
     
     private void restorePreferences() {
-        boolean remapperEnabled = appPreferences.isRemapperEnabled();
+        boolean remapperEnabled =
+                appPreferences.isRemapperEnabled();
     
-        remapperSwitch.setChecked(remapperEnabled);
+        suppressToggleCallbacks = true;
     
-        if (remapperEnabled) {
-            batterySaverSwitch.setChecked(
-                    appPreferences.isBatterySaverEnabled()
-            );
+        try {
+            remapperSwitch.setChecked(remapperEnabled);
     
-            autoShutdownSwitch.setChecked(
-                    appPreferences.isAutoShutdownEnabled()
-            );
-        } else {
-            batterySaverSwitch.setChecked(false);
-            autoShutdownSwitch.setChecked(false);
+            if (remapperEnabled) {
+                batterySaverSwitch.setChecked(
+                        appPreferences.isBatterySaverEnabled()
+                );
     
-            appPreferences.setBatterySaverEnabled(false);
-            appPreferences.setAutoShutdownEnabled(false);
+                autoShutdownSwitch.setChecked(
+                        appPreferences.isAutoShutdownEnabled()
+                );
+            } else {
+                batterySaverSwitch.setChecked(false);
+                autoShutdownSwitch.setChecked(false);
+            }
+        } finally {
+            suppressToggleCallbacks = false;
         }
     
         updateChildControls(remapperEnabled);
@@ -376,11 +401,14 @@ public class MainActivity extends Activity {
     }
 
     private void resetAutomationControls() {
-        batterySaverSwitch.setChecked(false);
-        autoShutdownSwitch.setChecked(false);
+        suppressToggleCallbacks = true;
     
-        appPreferences.setBatterySaverEnabled(false);
-        appPreferences.setAutoShutdownEnabled(false);
+        try {
+            batterySaverSwitch.setChecked(false);
+            autoShutdownSwitch.setChecked(false);
+        } finally {
+            suppressToggleCallbacks = false;
+        }
     }
 
     private void updateChildControls(boolean masterEnabled) {
@@ -526,5 +554,53 @@ public class MainActivity extends Activity {
                 process.destroy();
             }
         }
+    }
+
+    private void notifySystemUiSettingsChanged() {
+        Intent intent =
+                new Intent(ACTION_SETTINGS_CHANGED);
+    
+        /*
+         * Restrict delivery to the receiver registered inside
+         * com.android.systemui.
+         */
+        intent.setPackage(SYSTEM_UI_PACKAGE);
+    
+        try {
+            sendBroadcast(intent);
+        } catch (Throwable ignored) {
+            /*
+             * The preference remains saved. If SystemUI is not currently
+             * hooked, the setting will be loaded when SystemUI starts.
+             */
+        }
+    }
+
+    private void showRemapperRefreshRequiredDialog(
+            boolean enabled
+    ) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+    
+        int messageResource =
+                enabled
+                        ? R.string.remapper_enabled_refresh_message
+                        : R.string.remapper_disabled_refresh_message;
+    
+        new AlertDialog.Builder(this)
+                .setTitle(
+                        R.string.system_ui_refresh_required_title
+                )
+                .setMessage(messageResource)
+                .setNegativeButton(
+                        R.string.restart_system_ui_later,
+                        null
+                )
+                .setPositiveButton(
+                        R.string.restart_system_ui_now,
+                        (dialog, which) -> restartSystemUi()
+                )
+                .show();
     }
 }
