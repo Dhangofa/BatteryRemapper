@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace = "com.github.dhangofa.batteryremapper"
-    compileSdk = 34
+    compileSdk = 37
 
    defaultConfig {
         applicationId = "com.github.dhangofa.batteryremapper"
         minSdk = 29
-        targetSdk = 34
+        targetSdk = 37
         
         // Dynamic versioning using run_number from CI
         val runNumber = project.findProperty("versionCode")?.toString()?.toInt() ?: 1
