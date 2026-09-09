@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_olive">#73784B</color>
+    <color name="brand_sand">#E2D2AE</color>
+    <color name="brand_on_container">#3D412A</color>
+    <color name="surface_background">#F5F2EA</color>
+    <color name="card_surface">#FFFCF5</color>
+    <color name="text_primary">#292B21</color>
+    <color name="text_secondary">#67695D</color>
+    <color name="status_text_secondary">#62654A</color>
+    <color name="switch_track_off">#B9BAAF</color>
+    <color name="switch_thumb_off">#F4F1E8</color>
+    <color name="switch_disabled">#9A9B91</color>
+</resources>
