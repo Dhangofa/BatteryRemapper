@@ -27,7 +27,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Shrinking and obfuscation are on, so app/proguard-rules.pro is actually used. The
+            // entry class named in assets/xposed_init is kept by the rule in that file.
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

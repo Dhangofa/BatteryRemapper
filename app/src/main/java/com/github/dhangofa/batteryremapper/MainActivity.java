@@ -5,6 +5,7 @@ import android.content.pm.PackageInfo;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.CompoundButton;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.app.AlertDialog;
@@ -29,16 +30,21 @@ import java.util.UUID;
 
 public class MainActivity extends Activity {
 
-    private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
-    private static final String MODULE_PACKAGE = "com.github.dhangofa.batteryremapper";
-    private static final String ACTION_PROBE_HOOK = MODULE_PACKAGE + ".action.PROBE_SYSTEMUI_HOOK";
-    private static final String ACTION_HOOK_STATUS = MODULE_PACKAGE + ".action.SYSTEMUI_HOOK_STATUS";
-    private static final String EXTRA_REQUEST_ID = MODULE_PACKAGE + ".extra.REQUEST_ID";
-    private static final String EXTRA_HOOK_ACTIVE = MODULE_PACKAGE + ".extra.HOOK_ACTIVE";
-    private static final String EXTRA_HOOKED_PACKAGE = MODULE_PACKAGE + ".extra.HOOKED_PACKAGE";
+    /*
+     * The protocol strings themselves live in SettingsProvider: the hook running inside System
+     * UI has to agree with this screen on them exactly, so they are defined once there. These
+     * aliases keep the rest of this file as it was.
+     */
+    private static final String SYSTEM_UI_PACKAGE = SettingsProvider.SYSTEM_UI_PACKAGE;
+    private static final String MODULE_PACKAGE = SettingsProvider.MODULE_PACKAGE;
+    private static final String ACTION_PROBE_HOOK = SettingsProvider.ACTION_PROBE_HOOK;
+    private static final String ACTION_HOOK_STATUS = SettingsProvider.ACTION_HOOK_STATUS;
+    private static final String EXTRA_REQUEST_ID = SettingsProvider.EXTRA_REQUEST_ID;
+    private static final String EXTRA_HOOK_ACTIVE = SettingsProvider.EXTRA_HOOK_ACTIVE;
+    private static final String EXTRA_HOOKED_PACKAGE = SettingsProvider.EXTRA_HOOKED_PACKAGE;
     private static final long HOOK_STATUS_TIMEOUT_MS = 1500L;
 
-    private static final String ACTION_SETTINGS_CHANGED = MODULE_PACKAGE + ".action.SETTINGS_CHANGED";
+    private static final String ACTION_SETTINGS_CHANGED = SettingsProvider.ACTION_SETTINGS_CHANGED;
     private boolean suppressToggleCallbacks = false;
 
     private View hookStatusCard;
@@ -55,6 +61,15 @@ public class MainActivity extends Activity {
     private Switch autoShutdownSwitch;
     private View batterySaverCard;
     private View autoShutdownCard;
+
+    private View cardMappingRange;
+    private View cardShutdownTrigger;
+    private RangeSlider rangeMapping;
+    private SeekBar seekShutdownTrigger;
+    private TextView mapRangeValue;
+    private TextView mapPreview;
+    private TextView shutdownTriggerValue;
+    private boolean suppressSliderCallbacks = false;
     
     private ImageButton refreshSystemUiButton;
     private final ExecutorService commandExecutor = Executors.newSingleThreadExecutor();
@@ -74,7 +89,13 @@ public class MainActivity extends Activity {
                     resetAutomationControls();
                     updateChildControls(false);
                 }
-    
+
+                /*
+                 * The hook caches these switches, so it has to be told; otherwise the master
+                 * switch would only take effect with the next unrelated settings broadcast.
+                 */
+                notifySystemUiSettingsChanged();
+
                 showRemapperRefreshRequiredDialog(isChecked);
             };
     
@@ -95,6 +116,7 @@ public class MainActivity extends Activity {
                 }
     
                 appPreferences.setAutoShutdownEnabled(isChecked);
+                updateChildControls(remapperSwitch.isChecked());
                 notifySystemUiSettingsChanged();
             };
     private final BroadcastReceiver hookStatusReceiver =
@@ -175,6 +197,24 @@ public class MainActivity extends Activity {
         autoShutdownSwitch = findViewById(R.id.switchAutoShutdown);
         batterySaverCard = findViewById(R.id.cardBatterySaver);
         autoShutdownCard = findViewById(R.id.cardAutoShutdown);
+
+        cardMappingRange = findViewById(R.id.cardMappingRange);
+        cardShutdownTrigger = findViewById(R.id.cardShutdownTrigger);
+        rangeMapping = findViewById(R.id.rangeMapping);
+        seekShutdownTrigger = findViewById(R.id.seekShutdownTrigger);
+        mapRangeValue = findViewById(R.id.mapRangeValue);
+        mapPreview = findViewById(R.id.mapPreview);
+        shutdownTriggerValue = findViewById(R.id.shutdownTriggerValue);
+
+        // The mapping window is one two-thumb slider over the whole 0..100% domain.
+        rangeMapping.setBounds(
+                AppPreferences.MAP_LIMIT_MIN,
+                AppPreferences.MAP_LIMIT_MAX
+        );
+        rangeMapping.setMinimumSeparation(1);
+
+        // A SeekBar always starts at 0, which is the lower bound of the countdown range.
+        seekShutdownTrigger.setMax(AppPreferences.SHUTDOWN_TRIGGER_LIMIT_MAX);
 
         TextView appVersionText = findViewById(R.id.appVersionText);
         appVersionText.setText(getString(R.string.app_version_format, resolveVersionName()));
@@ -380,12 +420,133 @@ public class MainActivity extends Activity {
         }
     
         updateChildControls(remapperEnabled);
+        applyRangeToControls();
+        applyShutdownTriggerToControls();
     }
 
     private void attachListeners() {
         remapperSwitch.setOnCheckedChangeListener(remapperListener);
         batterySaverSwitch.setOnCheckedChangeListener(batterySaverListener);
         autoShutdownSwitch.setOnCheckedChangeListener(autoShutdownListener);
+
+        rangeMapping.setOnRangeChangedListener(rangeListener);
+        seekShutdownTrigger.setOnSeekBarChangeListener(shutdownTriggerListener);
+    }
+
+    /*
+     * Mapping range and countdown trigger.
+     *
+     * Both are stored when the user lifts their finger rather than on every step, so dragging a
+     * slider does not send a burst of broadcasts to System UI.
+     */
+
+    private final RangeSlider.OnRangeChangedListener rangeListener =
+            new RangeSlider.OnRangeChangedListener() {
+                @Override
+                public void onRangeChanged(RangeSlider slider, int from, int to) {
+                    // The slider keeps the two bounds apart on its own.
+                    updateRangeLabels(from, to);
+                }
+
+                @Override
+                public void onRangeChangeFinished(RangeSlider slider, int from, int to) {
+                    commitRange();
+                }
+            };
+
+    private final SeekBar.OnSeekBarChangeListener shutdownTriggerListener =
+            new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(
+                        SeekBar seekBar,
+                        int progress,
+                        boolean fromUser
+                ) {
+                    if (suppressSliderCallbacks) {
+                        return;
+                    }
+
+                    updateShutdownTriggerLabel(progress);
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    appPreferences.setShutdownTrigger(seekBar.getProgress());
+                    applyShutdownTriggerToControls();
+                    notifySystemUiSettingsChanged();
+                }
+            };
+
+    private void commitRange() {
+        int[] range = AppPreferences.normalizeRange(
+                rangeMapping.getValueFrom(),
+                rangeMapping.getValueTo()
+        );
+
+        appPreferences.setMapRange(range[0], range[1]);
+        applyRangeToControls();
+        notifySystemUiSettingsChanged();
+    }
+
+    private void applyRangeToControls() {
+        int[] range = appPreferences.getMapRange();
+        int min = range[0];
+        int max = range[1];
+
+        rangeMapping.setValues(min, max);
+        updateRangeLabels(min, max);
+
+        // The trigger is quoted in physical terms, so it follows the window.
+        applyShutdownTriggerToControls();
+    }
+
+    private void applyShutdownTriggerToControls() {
+        int trigger = appPreferences.getShutdownTrigger();
+
+        setProgressSilently(seekShutdownTrigger, trigger);
+        updateShutdownTriggerLabel(trigger);
+    }
+
+    private void updateRangeLabels(int min, int max) {
+        mapRangeValue.setText(
+                getString(R.string.map_range_value_format, min, max)
+        );
+
+        mapPreview.setText(
+                getString(R.string.map_preview_format, min, max)
+        );
+    }
+
+    /**
+     * Quotes the trigger on the displayed scale, which is what the user sees, together with the
+     * physical level it works out to under the current window.
+     */
+    private void updateShutdownTriggerLabel(int displayedLevel) {
+        shutdownTriggerValue.setText(
+                getString(
+                        R.string.shutdown_trigger_value_format,
+                        displayedLevel,
+                        Mapping.physicalForDisplayed(
+                                displayedLevel,
+                                rangeMapping.getValueFrom(),
+                                rangeMapping.getValueTo()
+                        )
+                )
+        );
+    }
+
+    private void setProgressSilently(SeekBar seekBar, int progress) {
+        suppressSliderCallbacks = true;
+
+        try {
+            seekBar.setProgress(progress);
+        } finally {
+            suppressSliderCallbacks = false;
+        }
     }
 
     private void configureCardClickTargets() {
@@ -414,11 +575,29 @@ public class MainActivity extends Activity {
     private void updateChildControls(boolean masterEnabled) {
         setChildControlState(batterySaverCard, batterySaverSwitch, masterEnabled);
         setChildControlState(autoShutdownCard, autoShutdownSwitch, masterEnabled);
+
+        setChildControlState(cardMappingRange, null, masterEnabled);
+
+        /*
+         * The countdown trigger only means anything while remapping AND Automatic Shutdown are
+         * both on, so it follows the shutdown switch as well as the master one.
+         */
+        boolean shutdownTriggerEnabled =
+                masterEnabled && autoShutdownSwitch.isChecked();
+
+        setChildControlState(cardShutdownTrigger, null, shutdownTriggerEnabled);
+
+        rangeMapping.setEnabled(masterEnabled);
+        seekShutdownTrigger.setEnabled(shutdownTriggerEnabled);
     }
 
     private void setChildControlState(View card, Switch toggle, boolean enabled) {
         card.setEnabled(enabled);
-        toggle.setEnabled(enabled);
+
+        if (toggle != null) {
+            toggle.setEnabled(enabled);
+        }
+
         card.setAlpha(enabled ? 1.0f : 0.52f);
     }
 
