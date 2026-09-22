@@ -505,29 +505,43 @@ public class RangeSlider extends View {
          * Advertised explicitly, because setting the class name does not give a custom View the
          * platform SeekBar's actions: a service that is offered no action announces a slider it
          * cannot operate.
-         */
-        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD);
-        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD);
-        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS);
-
-        info.addAction(
-                new AccessibilityNodeInfo.AccessibilityAction(
-                        adjustingLower
-                                ? R.id.accessibility_action_adjust_upper
-                                : R.id.accessibility_action_adjust_lower,
-                        getContext().getString(
-                                adjustingLower
-                                        ? R.string.a11y_action_adjust_upper
-                                        : R.string.a11y_action_adjust_lower
-                        )
-                )
-        );
+         * Expose adjustment actions only while the mapping control is
+         * enabled. The master remapping switch disables this view, so a
+         * screen reader must not continue changing its values afterward.
+        */
+        if (isEnabled()) {
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD);
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD);
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS);
+            info.addAction(
+                    new AccessibilityNodeInfo.AccessibilityAction(
+                            adjustingLower
+                                    ? R.id.accessibility_action_adjust_upper
+                                    : R.id.accessibility_action_adjust_lower,
+                            getContext().getString(
+                                    adjustingLower
+                                            ? R.string.a11y_action_adjust_upper
+                                            : R.string.a11y_action_adjust_lower
+                            )
+                    )
+            );
+        }
 
         info.setContentDescription(contentDescription());
     }
 
     @Override
     public boolean performAccessibilityAction(int action, Bundle arguments) {
+        /*
+         * Match touch and keyboard behavior: a disabled mapping slider
+         * remains readable but cannot be adjusted through accessibility.
+         */
+        if (!isEnabled()) {
+            return super.performAccessibilityAction(
+                    action,
+                    arguments
+            );
+        }
         switch (action) {
             // A screen reader drives a slider with the scroll actions.
             case AccessibilityNodeInfo.ACTION_SCROLL_FORWARD:
