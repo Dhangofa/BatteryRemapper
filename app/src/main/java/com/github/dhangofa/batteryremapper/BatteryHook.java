@@ -62,6 +62,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private static volatile boolean autoShutdownEnabled = false;
     private static boolean settingsReceiverRegistered = false;
     private static boolean batteryReceiverRegistered = false;
+    private static boolean packageReceiverRegistered = false;
 
     /*
      * The mapping window and the countdown trigger. The provider owns these keys, so they are read
@@ -110,6 +111,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
                             registerSettingsReceiver(application);
                             registerStatusReceiver(application);
                             registerBatteryReceiver(application);
+                            registerPackageRemovalReceiver(application);
                         }
                     }
             );
@@ -387,6 +389,47 @@ public class BatteryHook implements IXposedHookLoadPackage {
         );
 
         return false;
+    }
+
+    /**
+     * Releases any Battery Saver state previously controlled through
+     * BatteryRemapper.
+     *
+     * A successful OFF request is processed by Android's Power Manager as a
+     * manual disable operation, which also releases the corresponding sticky
+     * Battery Saver state on supported Android implementations.
+     */
+    private void releaseBatterySaver(Context context, String reason) {
+        if (context == null) {
+            XposedBridge.log(
+                    "BatteryRemapper: Cannot release Battery Saver because "
+                            + "the System UI context is unavailable."
+            );
+    
+            appliedSaverState = -1;
+            return;
+        }
+    
+        boolean released = setBatterySaver(context, false);
+    
+        /*
+         * Reset the cache even when the ROM rejects the request. If automation
+         * is enabled again later, the next battery event must evaluate the
+         * actual condition instead of trusting an old requested state.
+         */
+        appliedSaverState = -1;
+    
+        if (released) {
+            XposedBridge.log(
+                    "BatteryRemapper: Released Battery Saver state: "
+                            + reason
+            );
+        } else {
+            XposedBridge.log(
+                    "BatteryRemapper: Could not release Battery Saver state: "
+                            + reason
+            );
+        }
     }
 
     /** Native path: {@code PowerManager.setPowerSaveModeEnabled}. */
@@ -668,11 +711,18 @@ public class BatteryHook implements IXposedHookLoadPackage {
             }
     
             /*
-             * Reset the internal Saver cache when automation is disabled.
-             * BatteryRemapper does not force the actual system Saver state.
+             * BatteryRemapper may have enabled Android's global Battery Saver state.
+             * Disabling the automation, including through the master switch, must
+             * therefore request Battery Saver OFF instead of only forgetting the
+             * internal hysteresis cache.
              */
             if (saverWasEnabled && !batterySaverEnabled) {
-                appliedSaverState = -1;
+                releaseBatterySaver(
+                        context,
+                        remapperEnabled
+                                ? "Battery Saver automation disabled"
+                                : "master remapping disabled"
+                );
             }
     
             /*
@@ -688,7 +738,6 @@ public class BatteryHook implements IXposedHookLoadPackage {
              * a SystemUI restart, but keep cleanup defensive.
              */
             if (!remapperEnabled) {
-                appliedSaverState = -1;
                 cancelCountdown();
             }
     
@@ -928,6 +977,113 @@ public class BatteryHook implements IXposedHookLoadPackage {
         } catch (Throwable t) {
             XposedBridge.log(
                     "BatteryRemapper Battery Receiver Failure: " + t.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Releases Battery Saver if the BatteryRemapper package is uninstalled
+     * while its hook is still loaded inside System UI.
+     *
+     * Uninstalling an LSPosed module does not necessarily terminate System UI
+     * before Android delivers the package-removal broadcast. This receiver gives
+     * the loaded hook one final opportunity to release the global Saver state.
+     */
+    private void registerPackageRemovalReceiver(Context context) {
+        if (context == null || packageReceiverRegistered) {
+            return;
+        }
+    
+        try {
+            IntentFilter filter =
+                    new IntentFilter(Intent.ACTION_PACKAGE_REMOVED);
+    
+            filter.addDataScheme("package");
+    
+            BroadcastReceiver receiver =
+                    new BroadcastReceiver() {
+                        @Override
+                        public void onReceive(
+                                Context receiverContext,
+                                Intent intent
+                        ) {
+                            if (intent == null
+                                    || !Intent.ACTION_PACKAGE_REMOVED.equals(
+                                            intent.getAction()
+                                    )) {
+                                return;
+                            }
+    
+                            Uri removedPackage = intent.getData();
+    
+                            if (removedPackage == null
+                                    || !MODULE_PACKAGE.equals(
+                                            removedPackage
+                                                    .getSchemeSpecificPart()
+                                    )) {
+                                return;
+                            }
+    
+                            /*
+                             * Ignore package replacement during an APK update.
+                             * Android sends PACKAGE_REMOVED with this extra before
+                             * installing the replacement package.
+                             */
+                            if (intent.getBooleanExtra(
+                                    Intent.EXTRA_REPLACING,
+                                    false
+                            )) {
+                                return;
+                            }
+    
+                            XposedBridge.log(
+                                    "BatteryRemapper: Module package removed; "
+                                            + "releasing automation state."
+                            );
+    
+                            remapperEnabled = false;
+                            batterySaverEnabled = false;
+                            autoShutdownEnabled = false;
+                            shutdownDismissedForCurrentEvent = false;
+    
+                            cancelCountdown();
+    
+                            /*
+                             * Perform the cleanup regardless of the cached
+                             * appliedSaverState. The Android power service may
+                             * retain a manual or sticky state even after process
+                             * and framework restarts.
+                             */
+                            releaseBatterySaver(
+                                    receiverContext,
+                                    "module package uninstalled"
+                            );
+                        }
+                    };
+    
+            if (Build.VERSION.SDK_INT
+                    >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(
+                        receiver,
+                        filter,
+                        Context.RECEIVER_EXPORTED
+                );
+            } else {
+                context.registerReceiver(
+                        receiver,
+                        filter
+                );
+            }
+    
+            packageReceiverRegistered = true;
+    
+            XposedBridge.log(
+                    "BatteryRemapper: Package-removal receiver registered."
+            );
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper Package Receiver Failure: "
+                            + t.getMessage()
             );
         }
     }
