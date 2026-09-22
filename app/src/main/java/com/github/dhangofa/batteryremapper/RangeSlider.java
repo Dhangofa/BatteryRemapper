@@ -40,13 +40,6 @@ public class RangeSlider extends View {
     private static final int THUMB_FROM = 0;
     private static final int THUMB_TO = 1;
 
-    /*
-     * Custom accessibility action ids for choosing which bound is being adjusted. Custom ids have
-     * to stay outside the range the platform uses for its own actions.
-     */
-    private static final int ACTION_ADJUST_LOWER = 0x01000001;
-    private static final int ACTION_ADJUST_UPPER = 0x01000002;
-
     private final Paint trackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint windowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint thumbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -454,31 +447,47 @@ public class RangeSlider extends View {
 
         /*
          * One node, announced as a slider, with the bound currently being adjusted named
-         * explicitly, the standard scroll actions moving it, and an action for switching to the
+         * explicitly, the actions that move it advertised, and an action for switching to the
          * other bound. That is enough for a screen reader to operate both bounds, and it avoids
          * exposing two virtual nodes - which would mean depending on androidx for
          * ExploreByTouchHelper and pulling androidx.core into an otherwise dependency-free app.
          */
         info.setClassName("android.widget.SeekBar");
 
+        boolean adjustingLower = activeThumb == THUMB_FROM;
+
+        /*
+         * The announced range has to be the one the active thumb can actually reach, not the whole
+         * domain: the lower thumb stops at valueTo - minSeparation and the upper one starts at
+         * valueFrom + minSeparation, so the domain would promise values it cannot take.
+         */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // The typed constructor only exists from API 30; below that the range is simply not
             // announced, and the content description still carries both values.
             info.setRangeInfo(
                     new AccessibilityNodeInfo.RangeInfo(
                             AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT,
-                            boundFrom,
-                            boundTo,
+                            adjustingLower ? boundFrom : valueFrom + minSeparation,
+                            adjustingLower ? valueTo - minSeparation : boundTo,
                             activeValue()
                     )
             );
         }
 
-        boolean adjustingLower = activeThumb == THUMB_FROM;
+        /*
+         * Advertised explicitly, because setting the class name does not give a custom View the
+         * platform SeekBar's actions: a service that is offered no action announces a slider it
+         * cannot operate.
+         */
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD);
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD);
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS);
 
         info.addAction(
                 new AccessibilityNodeInfo.AccessibilityAction(
-                        adjustingLower ? ACTION_ADJUST_UPPER : ACTION_ADJUST_LOWER,
+                        adjustingLower
+                                ? R.id.accessibility_action_adjust_upper
+                                : R.id.accessibility_action_adjust_lower,
                         getContext().getString(
                                 adjustingLower
                                         ? R.string.a11y_action_adjust_upper
@@ -500,15 +509,63 @@ public class RangeSlider extends View {
             case AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD:
                 return nudgeActiveThumb(-1);
 
-            case ACTION_ADJUST_LOWER:
-                return selectThumb(THUMB_FROM);
-
-            case ACTION_ADJUST_UPPER:
-                return selectThumb(THUMB_TO);
-
             default:
-                return super.performAccessibilityAction(action, arguments);
+                break;
         }
+
+        /*
+         * The remaining actions are compared by value instead of in the switch above, because none
+         * of them is a compile-time constant: ACTION_SET_PROGRESS is an AccessibilityAction object
+         * rather than an int, and the two bound-switching ids come from res/values/ids.xml (the
+         * project builds with android.nonFinalResIds).
+         */
+
+        // The standard absolute-value action for a range control.
+        if (action == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId()) {
+            if (arguments == null) {
+                return false;
+            }
+
+            float wanted = arguments.getFloat(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE,
+                    Float.NaN
+            );
+
+            return !Float.isNaN(wanted) && setActiveValue(Math.round(wanted));
+        }
+
+        if (action == R.id.accessibility_action_adjust_lower) {
+            return selectThumb(THUMB_FROM);
+        }
+
+        if (action == R.id.accessibility_action_adjust_upper) {
+            return selectThumb(THUMB_TO);
+        }
+
+        return super.performAccessibilityAction(action, arguments);
+    }
+
+    /** Moves the active bound to an absolute value, as an accessibility service asks for. */
+    private boolean setActiveValue(int wanted) {
+        int previousFrom = valueFrom;
+        int previousTo = valueTo;
+
+        if (activeThumb == THUMB_FROM) {
+            valueFrom = Math.max(boundFrom, Math.min(wanted, valueTo - minSeparation));
+        } else {
+            valueTo = Math.min(boundTo, Math.max(wanted, valueFrom + minSeparation));
+        }
+
+        if (valueFrom == previousFrom && valueTo == previousTo) {
+            return false;
+        }
+
+        updateContentDescription();
+        invalidate();
+        notifyChanged();
+        notifyFinished();
+
+        return true;
     }
 
     /** Makes one of the two bounds the one that the arrow keys, scroll actions and drags move. */
