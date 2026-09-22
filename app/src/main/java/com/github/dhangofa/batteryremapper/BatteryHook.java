@@ -102,26 +102,36 @@ public class BatteryHook implements IXposedHookLoadPackage {
         try {
             XposedHelpers.findAndHookMethod(
                     Application.class,
-                    "onCreate",
+                    "attach",
+                    Context.class,
                     new XC_MethodHook() {
                         @Override
-                        protected void afterHookedMethod(MethodHookParam param) {
-                            Application application = (Application) param.thisObject;
-                            loadSettings(application);
-                            registerSettingsReceiver(application);
-                            registerStatusReceiver(application);
-                            registerBatteryReceiver(application);
-                            registerPackageRemovalReceiver(application);
+                        protected void afterHookedMethod(
+                                MethodHookParam param
+                        ) {
+                            Application application =
+                                    (Application) param.thisObject;
+        
+                            XposedBridge.log(
+                                    "BatteryRemapper: System UI application attached."
+                            );
+        
+                            // Run after attachment finishes so provider and receiver
+                            // operations use a fully attached System UI context.
+                            new Handler(
+                                    Looper.getMainLooper()
+                            ).post(
+                                    () -> initializeRuntimeComponents(application)
+                            );
                         }
                     }
             );
         } catch (Throwable t) {
             XposedBridge.log(
-                    "BatteryRemapper Status Receiver Error: "
+                    "BatteryRemapper Startup Hook Error: "
                             + t.getMessage()
             );
         }
-
         if (!batteryHookInstalled.compareAndSet(false, true)) {
             XposedBridge.log(
                     "BatteryRemapper: Battery hook already installed; "
@@ -261,6 +271,18 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     "BatteryRemapper Error: " + t.getMessage()
             );
         }
+    }
+
+    private void initializeRuntimeComponents(Application application) {
+        if (application == null) {
+            return;
+        }
+    
+        loadSettings(application);
+        registerSettingsReceiver(application);
+        registerStatusReceiver(application);
+        registerBatteryReceiver(application);
+        registerPackageRemovalReceiver(application);
     }
 
     private void handleBatterySaverLogic(Context context, int level, int plugged) {
