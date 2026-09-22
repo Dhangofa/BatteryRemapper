@@ -59,6 +59,13 @@ public class RangeSlider extends View {
     private int boundTo = 100;
     private int valueFrom = 0;
     private int valueTo = 100;
+
+    /*
+     * The values as they were when the current gesture started, so a cancelled gesture can be
+     * rolled back rather than leaving the control showing a window that was never saved.
+     */
+    private int valueFromAtGestureStart = 0;
+    private int valueToAtGestureStart = 100;
     private int minSeparation = 1;
 
     private int activeThumb = THUMB_FROM;
@@ -299,6 +306,8 @@ public class RangeSlider extends View {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 activeThumb = nearestThumb(event.getX());
+                valueFromAtGestureStart = valueFrom;
+                valueToAtGestureStart = valueTo;
                 dragging = true;
                 disallowParentIntercept(true);
                 dragTo(event.getX());
@@ -329,9 +338,27 @@ public class RangeSlider extends View {
                     return false;
                 }
 
+                /*
+                 * A cancelled gesture is not a completed selection: the parent ScrollView taking
+                 * over, the window losing focus and the system cancelling the stream all arrive
+                 * here. The value is rolled back to what the gesture started from, and the owner
+                 * is told so its labels follow, because leaving the intermediate value on screen
+                 * would show a window that is not saved anywhere - and a later completed gesture
+                 * would then build on those values. Note this only reports a change: it never
+                 * commits, so nothing is persisted.
+                 */
                 dragging = false;
                 disallowParentIntercept(false);
-                notifyFinished();
+
+                if (valueFrom != valueFromAtGestureStart
+                        || valueTo != valueToAtGestureStart) {
+                    valueFrom = valueFromAtGestureStart;
+                    valueTo = valueToAtGestureStart;
+                    updateContentDescription();
+                    invalidate();
+                    notifyChanged();
+                }
+
                 return true;
 
             default:

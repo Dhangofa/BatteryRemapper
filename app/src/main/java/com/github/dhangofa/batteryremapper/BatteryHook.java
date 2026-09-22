@@ -709,8 +709,18 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
             boolean saverWasEnabled = batterySaverEnabled;
             boolean shutdownWasEnabled = autoShutdownEnabled;
-            boolean windowChanged =
-                    mapMin != newRange[0] || mapMax != newRange[1];
+            boolean remapperWasEnabled = remapperEnabled;
+
+            /*
+             * The displayed percentage depends on the master switch as well as on the window:
+             * with remapping switched off, System UI still has to be told to recompute the level,
+             * or the status bar keeps showing the remapped value until the next real battery
+             * event.
+             */
+            boolean displayChanged =
+                    remapperWasEnabled != newRemapperEnabled
+                            || mapMin != newRange[0]
+                            || mapMax != newRange[1];
             boolean triggerChanged =
                     shutdownTrigger != newShutdownTrigger;
 
@@ -764,10 +774,11 @@ public class BatteryHook implements IXposedHookLoadPackage {
             }
     
             /*
-             * A changed window stays invisible until System UI recomputes the level, which it
-             * only does when an ACTION_BATTERY_CHANGED broadcast arrives.
+             * A changed window - or a master switch that now changes what is displayed - stays
+             * invisible until System UI recomputes the level, which it only does when an
+             * ACTION_BATTERY_CHANGED broadcast arrives.
              */
-            if (windowChanged) {
+            if (displayChanged) {
                 requestBatteryRefresh();
             }
 

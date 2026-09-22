@@ -475,7 +475,14 @@ public class MainActivity extends Activity {
 
                 @Override
                 public void onStopTrackingTouch(SeekBar seekBar) {
-                    appPreferences.setShutdownTrigger(seekBar.getProgress());
+                    int progress = seekBar.getProgress();
+
+                    // A gesture that ends where it started changes nothing, so nothing is sent.
+                    if (progress == appPreferences.getShutdownTrigger()) {
+                        return;
+                    }
+
+                    appPreferences.setShutdownTrigger(progress);
                     applyShutdownTriggerToControls();
                     notifySystemUiSettingsChanged();
                 }
@@ -486,6 +493,13 @@ public class MainActivity extends Activity {
                 rangeMapping.getValueFrom(),
                 rangeMapping.getValueTo()
         );
+
+        int[] current = appPreferences.getMapRange();
+
+        // Same guard as the trigger: no write and no broadcast when the window did not move.
+        if (current[0] == range[0] && current[1] == range[1]) {
+            return;
+        }
 
         appPreferences.setMapRange(range[0], range[1]);
         applyRangeToControls();
