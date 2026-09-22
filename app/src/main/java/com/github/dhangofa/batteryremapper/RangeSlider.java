@@ -329,9 +329,13 @@ public class RangeSlider extends View {
                     return false;
                 }
 
+                /*
+                 * A cancelled gesture is not a completed selection: the parent ScrollView taking
+                 * over, the window losing focus and the system cancelling the stream all arrive
+                 * here, and an intermediate value must not be persisted as the user's choice.
+                 */
                 dragging = false;
                 disallowParentIntercept(false);
-                notifyFinished();
                 return true;
 
             default:
