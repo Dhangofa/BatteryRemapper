@@ -35,7 +35,11 @@
     <string name="remapping_range_description">选择显示层要拉伸的物理电量区间。</string>
 
     <string name="map_range_value_format">物理 %1$d%% – %2$d%%</string>
-    <string name="map_range_content_description">映射区间：下限 %1$d%%，上限 %2$d%%</string>
+    <!-- 屏幕阅读器朗读用：正在调整的那条边界放在最前 -->
+    <string name="map_range_active_lower">映射区间，正在调整下限：%1$d%%（上限 %2$d%%）</string>
+    <string name="map_range_active_upper">映射区间，正在调整上限：%1$d%%（下限 %2$d%%）</string>
+    <string name="a11y_action_adjust_lower">调整下限</string>
+    <string name="a11y_action_adjust_upper">调整上限</string>
     <string name="map_preview_format">物理 %1$d%% → 0%%　·　物理 %2$d%% → 100%%</string>
 
 
