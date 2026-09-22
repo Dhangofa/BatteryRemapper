@@ -29,6 +29,14 @@ public class BatteryHook implements IXposedHookLoadPackage {
     private static boolean isShuttingDown = false;
     private static AlertDialog shutdownDialog = null;
     private static CountDownTimer shutdownTimer = null;
+    /*
+     * Suppresses repeated countdowns after the user dismisses the warning.
+     *
+     * This remains true only for the current low-battery event. It resets
+     * after charging, rising above the trigger, changing the trigger, or
+     * disabling the related feature.
+     */
+    private static volatile boolean shutdownDismissedForCurrentEvent = false;
     private static final AtomicBoolean batteryHookInstalled = new AtomicBoolean(false);
     private static final String MODULE_PACKAGE = "com.github.dhangofa.batteryremapper";
     private static final String ACTION_PROBE_HOOK = MODULE_PACKAGE + ".action.PROBE_SYSTEMUI_HOOK";
@@ -80,6 +88,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
     // -1 = Neutral/Unknown, 0 = Force OFF, 1 = Force ON
     private static int appliedSaverState = -1;      
+    
 
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
@@ -280,41 +289,74 @@ public class BatteryHook implements IXposedHookLoadPackage {
     }
 
     /**
-     * Judges the countdown against the displayed level and the configured trigger.
+     * Judges the countdown against the displayed level and configured trigger.
      *
-     * <p>Called even while the feature is switched off, so the disabled path can clean up a
-     * countdown that is still running.
+     * The user may dismiss one low-battery event without permanently disabling
+     * Automatic Shutdown. The dismissal resets after charging or after the
+     * displayed percentage rises above the configured trigger.
      */
-    private void handleShutdownLogic(int displayedLevel, int plugged) {
+    private void handleShutdownLogic(
+            int displayedLevel,
+            int plugged
+    ) {
+        /*
+         * Disabling Automatic Shutdown must cancel any existing countdown
+         * and clear the temporary dismissal state.
+         */
         if (!autoShutdownEnabled) {
-            /*
-             * loadSettings() already cancels when the switch goes off; this is the second layer,
-             * so a stale timer or dialog cannot survive a reordering of settings receivers.
-             */
-            if (isShuttingDown || shutdownDialog != null || shutdownTimer != null) {
+            shutdownDismissedForCurrentEvent = false;
+    
+            if (isShuttingDown
+                    || shutdownDialog != null
+                    || shutdownTimer != null) {
                 cancelCountdown();
             }
-
+    
             return;
         }
-
-        if (displayedLevel <= shutdownTrigger && plugged == 0) {
-            if (!isShuttingDown) {
-                isShuttingDown = true;
-                XposedBridge.log(
-                        "BatteryRemapper: Shutdown countdown armed at displayed "
-                                + displayedLevel
-                                + "% (trigger "
-                                + shutdownTrigger
-                                + "%), unplugged"
-                );
-                startCountdown();
+    
+        /*
+         * Charging or rising above the trigger ends the current low-battery
+         * event. A future drop to or below the trigger may start a new
+         * countdown.
+         */
+        if (plugged != 0 || displayedLevel > shutdownTrigger) {
+            shutdownDismissedForCurrentEvent = false;
+    
+            if (isShuttingDown
+                    || shutdownDialog != null
+                    || shutdownTimer != null) {
+                cancelCountdown();
             }
-        } else {
-            if (isShuttingDown) cancelCountdown();
+    
+            return;
+        }
+    
+        /*
+         * The battery remains at or below the trigger, but the user already
+         * chose to continue using the device during this event.
+         */
+        if (shutdownDismissedForCurrentEvent) {
+            return;
+        }
+    
+        /*
+         * Start only one countdown for the current event.
+         */
+        if (!isShuttingDown) {
+            isShuttingDown = true;
+    
+            XposedBridge.log(
+                    "BatteryRemapper: Shutdown countdown armed at displayed "
+                            + displayedLevel
+                            + "% (trigger "
+                            + shutdownTrigger
+                            + "%), unplugged"
+            );
+    
+            startCountdown();
         }
     }
-
     /**
      * Applies Battery Saver through the native API, falling back to SettingsLib when that path is
      * unavailable.
@@ -422,6 +464,21 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     builder.setMessage(countdownMessage(startSeconds));
                     builder.setCancelable(false);
                     
+                    /*
+                     * Cancel only the current low-battery countdown.
+                     *
+                     * Automatic Shutdown remains enabled, but the warning will not
+                     * reopen until charging begins or the displayed battery rises
+                     * above the configured trigger.
+                     */
+                    builder.setNegativeButton(
+                            moduleString(
+                                    R.string.shutdown_dialog_use_anyway,
+                                    "Use anyway"
+                            ),
+                            (dialog, which) -> dismissCurrentShutdownEvent()
+                    );
+                    
                     shutdownDialog = builder.create();
 
                     /*
@@ -462,6 +519,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
                                     + t.getMessage()
                     );
 
+                    shutdownDismissedForCurrentEvent = true;
                     isShuttingDown = false;
                     cancelCountdown();
                 }
@@ -486,6 +544,24 @@ public class BatteryHook implements IXposedHookLoadPackage {
                 }
             }
         });
+    }
+
+    /**
+     * Dismisses the current countdown without permanently turning off the
+     * Automatic Shutdown setting.
+     *
+     * The dialog remains suppressed until the battery rises above the
+     * configured trigger or a charger is connected.
+     */
+    private void dismissCurrentShutdownEvent() {
+        shutdownDismissedForCurrentEvent = true;
+    
+        XposedBridge.log(
+                "BatteryRemapper: User dismissed the current "
+                        + "low-battery shutdown countdown."
+        );
+    
+        cancelCountdown();
     }
 
     private void triggerShutdown() {
@@ -579,6 +655,17 @@ public class BatteryHook implements IXposedHookLoadPackage {
             mapMin = newRange[0];
             mapMax = newRange[1];
             shutdownTrigger = newShutdownTrigger;
+
+            /*
+             * A changed trigger represents a new shutdown condition.
+             * Disabling either the master feature or Automatic Shutdown also
+             * clears the temporary dismissal state.
+             */
+            if (triggerChanged
+                    || !remapperEnabled
+                    || !autoShutdownEnabled) {
+                shutdownDismissedForCurrentEvent = false;
+            }
     
             /*
              * Reset the internal Saver cache when automation is disabled.

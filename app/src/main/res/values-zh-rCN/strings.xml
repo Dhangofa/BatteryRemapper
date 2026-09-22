@@ -59,6 +59,7 @@
          由资源系统按语言自动选择，因此这里只放中文）。 -->
     <string name="shutdown_dialog_title">电量耗尽</string>
     <string name="shutdown_dialog_message">设备将在 %1$d 秒后关机。\n插入充电器即可取消。</string>
+    <string name="shutdown_dialog_use_anyway">继续使用</string>
 
 
     <!-- 手动重启 System UI -->
