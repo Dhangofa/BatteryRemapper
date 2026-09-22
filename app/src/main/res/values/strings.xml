@@ -64,6 +64,7 @@
     -->
     <string name="shutdown_dialog_title">Battery depleted</string>
     <string name="shutdown_dialog_message">Device will shut down in %1$d seconds.\nPlug in the charger to cancel.</string>
+    <string name="shutdown_dialog_use_anyway">Use anyway</string>
 
 
     <!-- Manual SystemUI restart -->
