@@ -4,6 +4,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.Build;
+import android.os.Bundle;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -37,6 +39,13 @@ public class RangeSlider extends View {
 
     private static final int THUMB_FROM = 0;
     private static final int THUMB_TO = 1;
+
+    /*
+     * Custom accessibility action ids for choosing which bound is being adjusted. Custom ids have
+     * to stay outside the range the platform uses for its own actions.
+     */
+    private static final int ACTION_ADJUST_LOWER = 0x01000001;
+    private static final int ACTION_ADJUST_UPPER = 0x01000002;
 
     private final Paint trackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint windowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -354,6 +363,12 @@ public class RangeSlider extends View {
             case KeyEvent.KEYCODE_DPAD_UP:
                 return nudgeActiveThumb(1);
 
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+                // Keyboard users switch which bound the arrow keys move.
+                return selectThumb(activeThumb == THUMB_FROM ? THUMB_TO : THUMB_FROM);
+
             default:
                 return super.onKeyDown(keyCode, event);
         }
@@ -437,18 +452,97 @@ public class RangeSlider extends View {
     public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         super.onInitializeAccessibilityNodeInfo(info);
 
-        // Announced as a slider; both bounds travel in the content description, which is
-        // refreshed on every change.
+        /*
+         * One node, announced as a slider, with the bound currently being adjusted named
+         * explicitly, the standard scroll actions moving it, and an action for switching to the
+         * other bound. That is enough for a screen reader to operate both bounds, and it avoids
+         * exposing two virtual nodes - which would mean depending on androidx for
+         * ExploreByTouchHelper and pulling androidx.core into an otherwise dependency-free app.
+         */
         info.setClassName("android.widget.SeekBar");
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // The typed constructor only exists from API 30; below that the range is simply not
+            // announced, and the content description still carries both values.
+            info.setRangeInfo(
+                    new AccessibilityNodeInfo.RangeInfo(
+                            AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT,
+                            boundFrom,
+                            boundTo,
+                            activeValue()
+                    )
+            );
+        }
+
+        boolean adjustingLower = activeThumb == THUMB_FROM;
+
+        info.addAction(
+                new AccessibilityNodeInfo.AccessibilityAction(
+                        adjustingLower ? ACTION_ADJUST_UPPER : ACTION_ADJUST_LOWER,
+                        getContext().getString(
+                                adjustingLower
+                                        ? R.string.a11y_action_adjust_upper
+                                        : R.string.a11y_action_adjust_lower
+                        )
+                )
+        );
+
+        info.setContentDescription(contentDescription());
+    }
+
+    @Override
+    public boolean performAccessibilityAction(int action, Bundle arguments) {
+        switch (action) {
+            // A screen reader drives a slider with the scroll actions.
+            case AccessibilityNodeInfo.ACTION_SCROLL_FORWARD:
+                return nudgeActiveThumb(1);
+
+            case AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD:
+                return nudgeActiveThumb(-1);
+
+            case ACTION_ADJUST_LOWER:
+                return selectThumb(THUMB_FROM);
+
+            case ACTION_ADJUST_UPPER:
+                return selectThumb(THUMB_TO);
+
+            default:
+                return super.performAccessibilityAction(action, arguments);
+        }
+    }
+
+    /** Makes one of the two bounds the one that the arrow keys, scroll actions and drags move. */
+    private boolean selectThumb(int thumb) {
+        if (activeThumb == thumb) {
+            return false;
+        }
+
+        activeThumb = thumb;
+        updateContentDescription();
+        invalidate();
+
+        return true;
+    }
+
+    /** The value of the bound currently being adjusted. */
+    private int activeValue() {
+        return activeThumb == THUMB_FROM ? valueFrom : valueTo;
     }
 
     private void updateContentDescription() {
-        setContentDescription(
-                getContext().getString(
-                        R.string.map_range_content_description,
-                        valueFrom,
-                        valueTo
-                )
+        setContentDescription(contentDescription());
+    }
+
+    /** Names the bound being adjusted, so the two are not confused by a screen reader. */
+    private CharSequence contentDescription() {
+        boolean adjustingLower = activeThumb == THUMB_FROM;
+
+        return getContext().getString(
+                adjustingLower
+                        ? R.string.map_range_active_lower
+                        : R.string.map_range_active_upper,
+                adjustingLower ? valueFrom : valueTo,
+                adjustingLower ? valueTo : valueFrom
         );
     }
 }

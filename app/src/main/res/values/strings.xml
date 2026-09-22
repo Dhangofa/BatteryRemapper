@@ -36,7 +36,11 @@
     <string name="remapping_range_description">Which physical battery range the display stretches onto 0–100%.</string>
 
     <string name="map_range_value_format">%1$d%% – %2$d%% physical</string>
-    <string name="map_range_content_description">Mapping range: lower bound %1$d%%, upper bound %2$d%%</string>
+    <!-- Announced by a screen reader; the bound being adjusted is named first. -->
+    <string name="map_range_active_lower">Mapping range, adjusting the lower bound: %1$d%% (upper bound %2$d%%)</string>
+    <string name="map_range_active_upper">Mapping range, adjusting the upper bound: %1$d%% (lower bound %2$d%%)</string>
+    <string name="a11y_action_adjust_lower">Adjust the lower bound</string>
+    <string name="a11y_action_adjust_upper">Adjust the upper bound</string>
     <string name="map_preview_format">Physical %1$d%% → 0%%　·　Physical %2$d%% → 100%%</string>
 
 
