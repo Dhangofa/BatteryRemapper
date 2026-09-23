@@ -91,6 +91,15 @@ $$\text{Display \%} = \text{round}\left( \frac{\text{Physical \%} - \text{Min}}{
 
 ---
 
+## 📥 Download & Installation
+
+You can get the latest pre-compiled release from either source:
+
+* 📦 **GitHub Releases:** [Download Latest APK](https://github.com/Dhangofa/BatteryRemapper/releases/latest)
+* 🧩 **LSPosed Module Repository:** [BatteryRemapper Module Page](https://modules.lsposed.org/module/com.github.dhangofa.batteryremapper/)
+
+---
+
 ## 👥 Credits
 
 * **Developer:** [Dhangofa](https://github.com/Dhangofa)
