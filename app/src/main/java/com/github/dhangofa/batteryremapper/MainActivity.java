@@ -216,8 +216,10 @@ public class MainActivity extends Activity {
         // A SeekBar always starts at 0, which is the lower bound of the countdown range.
         seekShutdownTrigger.setMax(AppPreferences.SHUTDOWN_TRIGGER_LIMIT_MAX);
 
-        TextView appVersionText = findViewById(R.id.appVersionText);
-        appVersionText.setText(getString(R.string.app_version_format, resolveVersionName()));
+        ImageButton btnAbout = findViewById(R.id.btnAbout);
+        btnAbout.setOnClickListener(
+                view -> btnAbout.post(() -> startActivity(new Intent(MainActivity.this, AboutActivity.class)))
+        );
 
         refreshSystemUiButton = findViewById(R.id.btnRefreshSystemUi); 
         refreshSystemUiButton.setOnClickListener(
