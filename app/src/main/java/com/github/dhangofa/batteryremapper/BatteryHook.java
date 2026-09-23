@@ -3,19 +3,32 @@ package com.github.dhangofa.batteryremapper;
 import android.app.AlertDialog;
 import android.app.AndroidAppHelper;
 import android.app.Application;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.drawable.Icon;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.os.Process;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.view.WindowManager;
 import android.net.Uri;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -88,7 +101,15 @@ public class BatteryHook implements IXposedHookLoadPackage {
             "Device will shut down in %1$d seconds.\nPlug in the charger to cancel.";
 
     // -1 = Neutral/Unknown, 0 = Force OFF, 1 = Force ON
-    private static int appliedSaverState = -1;      
+    private static int appliedSaverState = -1;
+
+    private static final String ACTION_TURN_OFF_SAVER = MODULE_PACKAGE + ".action.TURN_OFF_SAVER";
+    private static final String SAVER_NOTIFICATION_TAG = "BatteryRemapper_Saver";
+    private static final int SAVER_NOTIFICATION_ID = 10029;
+    private static final String SAVER_NOTIFICATION_CHANNEL_ID = "battery_saver_channel";
+    private static volatile boolean saverManuallyDismissed = false;
+    private static volatile boolean saverNotificationPosted = false;
+    private static boolean saverActionReceiverRegistered = false;      
     
 
     @Override
@@ -283,9 +304,26 @@ public class BatteryHook implements IXposedHookLoadPackage {
         registerStatusReceiver(application);
         registerBatteryReceiver(application);
         registerPackageRemovalReceiver(application);
+        registerSaverActionReceiver(application);
+    }
+
+    private static boolean isPowerSaveMode(Context context) {
+        if (context == null) {
+            return false;
+        }
+        try {
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            return pm != null && pm.isPowerSaveMode();
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private void handleBatterySaverLogic(Context context, int level, int plugged) {
+        if (context == null) {
+            return;
+        }
+
         /*
          * The cache is updated only when the request actually succeeded, so a failed toggle is
          * retried on the next battery event instead of being remembered as already applied.
@@ -293,20 +331,52 @@ public class BatteryHook implements IXposedHookLoadPackage {
 
         // CHARGING: Force OFF immediately
         if (plugged != 0) {
-            if (appliedSaverState != 0 && setBatterySaver(context, false)) {
-                appliedSaverState = 0;
+            saverManuallyDismissed = false;
+            saverNotificationPosted = false;
+            if (appliedSaverState != 0 || isPowerSaveMode(context)) {
+                if (setBatterySaver(context, false)) {
+                    appliedSaverState = 0;
+                    cancelBatterySaverNotification(context);
+                }
             }
+            return;
+        }
+
+        /*
+         * If the user manually turned off Battery Saver externally (e.g. from Quick Settings)
+         * after it was turned on, respect that choice for the current discharge cycle.
+         */
+        if (appliedSaverState == 1 && !isPowerSaveMode(context)) {
+            saverManuallyDismissed = true;
+            saverNotificationPosted = false;
+            appliedSaverState = 0;
+            cancelBatterySaverNotification(context);
             return;
         }
 
         // UNPLUGGED: Hysteresis Logic
         if (level <= SAVER_ON_LEVEL) {
-            if (appliedSaverState != 1 && setBatterySaver(context, true)) {
-                appliedSaverState = 1;
+            if (!saverManuallyDismissed) {
+                if (appliedSaverState != 1 || !isPowerSaveMode(context)) {
+                    if (setBatterySaver(context, true)) {
+                        appliedSaverState = 1;
+                    }
+                }
+                if (appliedSaverState == 1 || isPowerSaveMode(context)) {
+                    if (!saverNotificationPosted) {
+                        showBatterySaverNotification(context, level);
+                        saverNotificationPosted = true;
+                    }
+                }
             }
         } else if (level > SAVER_OFF_LEVEL) {
-            if (appliedSaverState != 0 && setBatterySaver(context, false)) {
-                appliedSaverState = 0;
+            saverManuallyDismissed = false;
+            saverNotificationPosted = false;
+            if (appliedSaverState != 0 || isPowerSaveMode(context)) {
+                if (setBatterySaver(context, false)) {
+                    appliedSaverState = 0;
+                    cancelBatterySaverNotification(context);
+                }
             }
         }
         // Between the two thresholds: keep the current state (hysteresis)
@@ -382,35 +452,74 @@ public class BatteryHook implements IXposedHookLoadPackage {
         }
     }
     /**
-     * Applies Battery Saver through the native API, falling back to SettingsLib when that path is
-     * unavailable.
+     * Applies Battery Saver through a cascading multi-tier strategy supporting
+     * AOSP, Pixel, Xiaomi HyperOS/MIUI, Samsung One UI, ColorOS/OxygenOS, and OriginOS.
      *
-     * <p>The two paths are tried in order and the first success wins: calling both would send two
-     * requests for one state change, and routing the fallback through an outer {@code catch} meant
-     * it was never attempted when the native call threw.
-     *
-     * @return whether one of the two paths actually applied the state
+     * @return whether the Battery Saver state was successfully applied
      */
     private boolean setBatterySaver(Context context, boolean enable) {
-        if (tryPowerManagerBatterySaver(context, enable)) {
-            XposedBridge.log("BatteryRemapper: Battery Saver -> " + (enable ? "ON" : "OFF"));
-            return true;
+        if (context == null) {
+            return false;
         }
 
-        if (trySettingsLibBatterySaver(context, enable)) {
+        boolean success = false;
+
+        // 1. Native PowerManager API (AOSP, Pixel, Motorola, Sony, etc.)
+        if (tryPowerManagerBatterySaver(context, enable)) {
+            XposedBridge.log(
+                    "BatteryRemapper: Battery Saver -> "
+                            + (enable ? "ON" : "OFF")
+                            + " (via PowerManager)"
+            );
+            success = true;
+        }
+
+        // 2. Direct IPowerManager Binder IPC (bypasses OEM wrapper restrictions)
+        if (!success && tryIPowerManagerBatterySaver(enable)) {
+            XposedBridge.log(
+                    "BatteryRemapper: Battery Saver -> "
+                            + (enable ? "ON" : "OFF")
+                            + " (via IPowerManager IPC)"
+            );
+            success = true;
+        }
+
+        // 3. SettingsLib Fuelgauge (AOSP / legacy ROMs)
+        if (!success && trySettingsLibBatterySaver(context, enable)) {
             XposedBridge.log(
                     "BatteryRemapper: Battery Saver -> "
                             + (enable ? "ON" : "OFF")
                             + " (via SettingsLib)"
             );
+            success = true;
+        }
+
+        // 4. Global System Setting (universal AOSP setting: Settings.Global.LOW_POWER = "low_power")
+        // System UI runs with UID 1000 (system), so this writes to Settings and notifies system server.
+        if (tryGlobalSettingsBatterySaver(context, enable)) {
+            XposedBridge.log(
+                    "BatteryRemapper: Battery Saver -> "
+                            + (enable ? "ON" : "OFF")
+                            + " (via Settings.Global low_power)"
+            );
+            success = true;
+        }
+
+        // 5. OEM-specific providers and broadcasts (Xiaomi HyperOS / MIUI, Samsung One UI, ColorOS, OriginOS)
+        if (tryOemSpecificBatterySaver(context, enable)) {
+            XposedBridge.log(
+                    "BatteryRemapper: Battery Saver -> "
+                            + (enable ? "ON" : "OFF")
+                            + " (via OEM-specific hooks)"
+            );
+            success = true;
+        }
+
+        if (isPowerSaveMode(context) == enable) {
             return true;
         }
 
-        XposedBridge.log(
-                "BatteryRemapper: Battery Saver toggle failed; neither path was available"
-        );
-
-        return false;
+        return success;
     }
 
     /**
@@ -432,7 +541,10 @@ public class BatteryHook implements IXposedHookLoadPackage {
             return;
         }
     
+        saverManuallyDismissed = false;
+        saverNotificationPosted = false;
         boolean released = setBatterySaver(context, false);
+        cancelBatterySaverNotification(context);
     
         /*
          * Reset the cache even when the ROM rejects the request. If automation
@@ -463,15 +575,46 @@ public class BatteryHook implements IXposedHookLoadPackage {
                 return false;
             }
 
-            XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", enable);
-
+            Object result = XposedHelpers.callMethod(powerManager, "setPowerSaveModeEnabled", enable);
+            if (result instanceof Boolean) {
+                return (Boolean) result;
+            }
             return true;
         } catch (Throwable t) {
             return false;
         }
     }
 
-    /** ROM path: {@code SettingsLib.fuelgauge.BatterySaverUtils}, used by MIUI and others. */
+    /** IPC path: Direct call into system_server IPowerManager binder. */
+    private boolean tryIPowerManagerBatterySaver(boolean enable) {
+        try {
+            Class<?> serviceManagerClass = XposedHelpers.findClass("android.os.ServiceManager", null);
+            IBinder binder = (IBinder) XposedHelpers.callStaticMethod(
+                    serviceManagerClass,
+                    "getService",
+                    Context.POWER_SERVICE
+            );
+            if (binder == null) {
+                return false;
+            }
+
+            Class<?> stubClass = XposedHelpers.findClass("android.os.IPowerManager$Stub", null);
+            Object iPowerManager = XposedHelpers.callStaticMethod(stubClass, "asInterface", binder);
+            if (iPowerManager == null) {
+                return false;
+            }
+
+            Object result = XposedHelpers.callMethod(iPowerManager, "setPowerSaveModeEnabled", enable);
+            if (result instanceof Boolean) {
+                return (Boolean) result;
+            }
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** ROM path: {@code SettingsLib.fuelgauge.BatterySaverUtils}, dynamically probing all method signatures. */
     private boolean trySettingsLibBatterySaver(Context context, boolean enable) {
         try {
             Class<?> saverUtils = XposedHelpers.findClass(
@@ -479,18 +622,140 @@ public class BatteryHook implements IXposedHookLoadPackage {
                     context.getClassLoader()
             );
 
-            XposedHelpers.callStaticMethod(
-                    saverUtils,
-                    "setPowerSaveMode",
-                    context,
-                    enable,
-                    true
-            );
-
-            return true;
+            for (Method method : saverUtils.getDeclaredMethods()) {
+                if ("setPowerSaveMode".equals(method.getName())
+                        && Modifier.isStatic(method.getModifiers())) {
+                    Class<?>[] paramTypes = method.getParameterTypes();
+                    try {
+                        method.setAccessible(true);
+                        if (paramTypes.length == 3
+                                && paramTypes[0] == Context.class
+                                && paramTypes[1] == boolean.class
+                                && paramTypes[2] == boolean.class) {
+                            Object res = method.invoke(null, context, enable, true);
+                            return !(res instanceof Boolean) || (Boolean) res;
+                        } else if (paramTypes.length == 4
+                                && paramTypes[0] == Context.class
+                                && paramTypes[1] == boolean.class
+                                && paramTypes[2] == boolean.class
+                                && paramTypes[3] == int.class) {
+                            // Android 13/14/15 caller reason (0 = SAVE_MODE_SCHEDULE_NONE)
+                            Object res = method.invoke(null, context, enable, true, 0);
+                            return !(res instanceof Boolean) || (Boolean) res;
+                        } else if (paramTypes.length == 2
+                                && paramTypes[0] == Context.class
+                                && paramTypes[1] == boolean.class) {
+                            Object res = method.invoke(null, context, enable);
+                            return !(res instanceof Boolean) || (Boolean) res;
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+            return false;
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    /** Global Settings path: {@code Settings.Global.LOW_POWER} observed by Android PowerManagerService. */
+    private boolean tryGlobalSettingsBatterySaver(Context context, boolean enable) {
+        try {
+            return Settings.Global.putInt(
+                    context.getContentResolver(),
+                    "low_power",
+                    enable ? 1 : 0
+            );
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** OEM-specific Settings and Broadcasts (Xiaomi HyperOS/MIUI, Samsung One UI, ColorOS, OriginOS). */
+    private boolean tryOemSpecificBatterySaver(Context context, boolean enable) {
+        boolean anyApplied = false;
+        android.content.ContentResolver resolver = context.getContentResolver();
+
+        // 1. Xiaomi / Redmi / POCO (HyperOS / MIUI)
+        try {
+            Settings.System.putInt(
+                    resolver,
+                    "POWER_SAVE_MODE_OPEN",
+                    enable ? 1 : 0
+            );
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            Intent miuiIntent = new Intent("miui.intent.action.POWER_SAVE_MODE_CHANGED");
+            miuiIntent.putExtra("state", enable ? 1 : 0);
+            context.sendBroadcast(miuiIntent);
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+
+        // 2. Samsung (One UI)
+        try {
+            Settings.Global.putInt(
+                    resolver,
+                    "sem_low_power_mode",
+                    enable ? 1 : 0
+            );
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+        try {
+            Settings.Global.putInt(
+                    resolver,
+                    "sem_power_mode",
+                    enable ? 1 : 0
+            );
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+        try {
+            Settings.Global.putInt(
+                    resolver,
+                    "low_power_mode",
+                    enable ? 1 : 0
+            );
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+
+        // 3. OPPO / OnePlus / Realme (ColorOS / OxygenOS / Realme UI)
+        try {
+            Settings.System.putInt(
+                    resolver,
+                    "super_powersave_mode_state",
+                    enable ? 1 : 0
+            );
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+
+        // 4. Vivo / iQOO (OriginOS / FuntouchOS)
+        try {
+            Settings.System.putInt(
+                    resolver,
+                    "super_power_save",
+                    enable ? 1 : 0
+            );
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+        try {
+            Settings.System.putInt(
+                    resolver,
+                    "power_save_mode",
+                    enable ? 1 : 0
+            );
+            anyApplied = true;
+        } catch (Throwable ignored) {
+        }
+
+        return anyApplied;
     }
 
     // Suppressed for the window type below, which is deprecated but deliberate.
@@ -748,7 +1013,8 @@ public class BatteryHook implements IXposedHookLoadPackage {
              * therefore request Battery Saver OFF instead of only forgetting the
              * internal hysteresis cache.
              */
-            if (saverWasEnabled && !batterySaverEnabled) {
+            if ((saverWasEnabled && !batterySaverEnabled)
+                    || (remapperWasEnabled && !remapperEnabled && (saverWasEnabled || isPowerSaveMode(context)))) {
                 releaseBatterySaver(
                         context,
                         remapperEnabled
@@ -788,6 +1054,14 @@ public class BatteryHook implements IXposedHookLoadPackage {
              */
             if (triggerChanged || !autoShutdownEnabled) {
                 evaluateCountdownNow();
+            }
+
+            /*
+             * If Battery Saver automation is enabled or remapping range changed, immediately
+             * evaluate Battery Saver against the current battery state.
+             */
+            if (batterySaverEnabled) {
+                evaluateBatterySaverNow();
             }
 
             XposedBridge.log(
@@ -984,9 +1258,20 @@ public class BatteryHook implements IXposedHookLoadPackage {
                         return;
                     }
 
+                    int plugged = extras.getInt(BatteryManager.EXTRA_PLUGGED, 0);
+                    int displayedLevel = Mapping.remap(level, mapMin, mapMax);
+
+                    if (batterySaverEnabled) {
+                        handleBatterySaverLogic(
+                                receiverContext,
+                                displayedLevel,
+                                plugged
+                        );
+                    }
+
                     handleShutdownLogic(
-                            Mapping.remap(level, mapMin, mapMax),
-                            extras.getInt(BatteryManager.EXTRA_PLUGGED, 0)
+                            displayedLevel,
+                            plugged
                     );
                 }
             };
@@ -995,7 +1280,7 @@ public class BatteryHook implements IXposedHookLoadPackage {
                 context.registerReceiver(
                         receiver,
                         filter,
-                        Context.RECEIVER_NOT_EXPORTED
+                        Context.RECEIVER_EXPORTED
                 );
             } else {
                 context.registerReceiver(receiver, filter);
@@ -1121,6 +1406,306 @@ public class BatteryHook implements IXposedHookLoadPackage {
         }
     }
 
+    private void registerSaverActionReceiver(Context context) {
+        if (context == null || saverActionReceiverRegistered) {
+            return;
+        }
+
+        try {
+            IntentFilter filter = new IntentFilter(ACTION_TURN_OFF_SAVER);
+            BroadcastReceiver receiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context receiverContext, Intent intent) {
+                    if (intent == null || !ACTION_TURN_OFF_SAVER.equals(intent.getAction())) {
+                        return;
+                    }
+
+                    XposedBridge.log(
+                            "BatteryRemapper: User requested Battery Saver OFF via notification action."
+                    );
+                    saverManuallyDismissed = true;
+                    saverNotificationPosted = false;
+                    setBatterySaver(receiverContext, false);
+                    appliedSaverState = 0;
+                    cancelBatterySaverNotification(receiverContext);
+                }
+            };
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(
+                        receiver,
+                        filter,
+                        Context.RECEIVER_EXPORTED
+                );
+            } else {
+                context.registerReceiver(
+                        receiver,
+                        filter
+                );
+            }
+
+            saverActionReceiverRegistered = true;
+            XposedBridge.log("BatteryRemapper: Saver action receiver registered.");
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper Saver Action Receiver Failure: " + t.getMessage()
+            );
+        }
+    }
+
+    private void showBatterySaverNotification(Context context, int level) {
+        if (context == null) {
+            return;
+        }
+
+        try {
+            NotificationManager nm =
+                    (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) {
+                return;
+            }
+
+            String channelName = moduleString(R.string.battery_saver_channel_name, "Battery Saver");
+            String channelId = SAVER_NOTIFICATION_CHANNEL_ID;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    List<NotificationChannel> channels = nm.getNotificationChannels();
+                    if (channels != null) {
+                        for (NotificationChannel ch : channels) {
+                            String id = ch.getId();
+                            if (id != null) {
+                                String lower = id.toLowerCase();
+                                if (lower.equals("battery")
+                                        || lower.equals("bat")
+                                        || lower.equals("power")
+                                        || lower.contains("battery")
+                                        || lower.contains("saver")) {
+                                    channelId = id;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    XposedBridge.log(
+                            "BatteryRemapper: Channel discovery failed: " + t.getMessage()
+                    );
+                }
+
+                if (nm.getNotificationChannel(channelId) == null) {
+                    NotificationChannel channel = new NotificationChannel(
+                            channelId,
+                            channelName,
+                            NotificationManager.IMPORTANCE_HIGH
+                    );
+                    channel.setDescription("Notifications about Battery Saver state");
+                    channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                    channel.setShowBadge(true);
+                    try {
+                        nm.createNotificationChannel(channel);
+                    } catch (Throwable t) {
+                        XposedBridge.log(
+                                "BatteryRemapper: Channel creation failed: " + t.getMessage()
+                        );
+                    }
+                }
+            }
+
+            Icon smallIcon = null;
+            String sysUiPkg = context.getPackageName();
+            String[] candidateDrawables = new String[] {
+                    "ic_battery_saver",
+                    "ic_power_saver",
+                    "stat_sys_battery_saver",
+                    "stat_sys_battery",
+                    "ic_battery_alert",
+                    "stat_sys_battery_charge",
+                    "ic_sysbar_battery"
+            };
+
+            for (String candidate : candidateDrawables) {
+                try {
+                    int resId = context.getResources().getIdentifier(
+                            candidate,
+                            "drawable",
+                            sysUiPkg
+                    );
+                    if (resId != 0) {
+                        smallIcon = Icon.createWithResource(sysUiPkg, resId);
+                        break;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            if (smallIcon == null && context.getApplicationInfo() != null && context.getApplicationInfo().icon != 0) {
+                smallIcon = Icon.createWithResource(sysUiPkg, context.getApplicationInfo().icon);
+            }
+
+            if (smallIcon == null) {
+                int frameworkIcon = 0;
+                try {
+                    frameworkIcon = context.getResources().getIdentifier(
+                            "stat_sys_battery_saver",
+                            "drawable",
+                            "android"
+                    );
+                } catch (Throwable ignored) {}
+                if (frameworkIcon == 0) {
+                    frameworkIcon = android.R.drawable.stat_sys_warning;
+                }
+                smallIcon = Icon.createWithResource("android", frameworkIcon);
+            }
+
+            Intent settingsIntent = new Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS);
+            settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent contentIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    settingsIntent,
+                    pendingFlags
+            );
+
+            Intent turnOffIntent = new Intent(ACTION_TURN_OFF_SAVER);
+            PendingIntent turnOffPendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    0,
+                    turnOffIntent,
+                    pendingFlags
+            );
+
+            String title = moduleString(R.string.battery_saver_notif_title, "Battery Saver is on");
+            String text = moduleString(
+                    R.string.battery_saver_notif_text,
+                    "Turned on automatically at " + level + "% battery.",
+                    level
+            );
+            String turnOffLabel = moduleString(R.string.battery_saver_notif_turn_off, "Turn off");
+
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder = new Notification.Builder(context, channelId);
+            } else {
+                builder = new Notification.Builder(context);
+            }
+
+            builder.setSmallIcon(smallIcon)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setContentIntent(contentIntent)
+                    .setAutoCancel(true)
+                    .setOngoing(false)
+                    .setPriority(Notification.PRIORITY_HIGH);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                Notification.Action turnOffAction = new Notification.Action.Builder(
+                        0,
+                        turnOffLabel,
+                        turnOffPendingIntent
+                ).build();
+                builder.addAction(turnOffAction);
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                builder.setCategory(Notification.CATEGORY_STATUS);
+                builder.setVisibility(Notification.VISIBILITY_PUBLIC);
+            }
+
+            Notification notification = builder.build();
+
+            boolean posted = false;
+            try {
+                Method notifyAsUser = NotificationManager.class.getMethod(
+                        "notifyAsUser",
+                        String.class,
+                        int.class,
+                        Notification.class,
+                        UserHandle.class
+                );
+                UserHandle targetUser = null;
+                try {
+                    targetUser = (UserHandle) XposedHelpers.getStaticObjectField(UserHandle.class, "ALL");
+                } catch (Throwable ignored) {}
+                if (targetUser == null) {
+                    try {
+                        targetUser = (UserHandle) XposedHelpers.getStaticObjectField(UserHandle.class, "CURRENT");
+                    } catch (Throwable ignored) {}
+                }
+                if (targetUser == null) {
+                    targetUser = Process.myUserHandle();
+                }
+                notifyAsUser.invoke(nm, SAVER_NOTIFICATION_TAG, SAVER_NOTIFICATION_ID, notification, targetUser);
+                posted = true;
+            } catch (Throwable t) {
+                XposedBridge.log(
+                        "BatteryRemapper: notifyAsUser failed, falling back to standard notify: "
+                                + t.getMessage()
+                );
+            }
+
+            if (!posted) {
+                nm.notify(SAVER_NOTIFICATION_TAG, SAVER_NOTIFICATION_ID, notification);
+            }
+
+            XposedBridge.log(
+                    "BatteryRemapper: Posted 'Battery Saver is on' system notification at "
+                            + level
+                            + "%."
+            );
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper: Failed to post Battery Saver notification: "
+                            + t.getMessage()
+            );
+        }
+    }
+
+    private void cancelBatterySaverNotification(Context context) {
+        if (context == null) {
+            return;
+        }
+        saverNotificationPosted = false;
+        try {
+            NotificationManager nm =
+                    (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) {
+                return;
+            }
+
+            boolean cancelled = false;
+            try {
+                Method cancelAsUser = NotificationManager.class.getMethod(
+                        "cancelAsUser",
+                        String.class,
+                        int.class,
+                        UserHandle.class
+                );
+                UserHandle targetUser = null;
+                try {
+                    targetUser = (UserHandle) XposedHelpers.getStaticObjectField(UserHandle.class, "ALL");
+                } catch (Throwable ignored) {}
+                if (targetUser == null) {
+                    try {
+                        targetUser = (UserHandle) XposedHelpers.getStaticObjectField(UserHandle.class, "CURRENT");
+                    } catch (Throwable ignored) {}
+                }
+                if (targetUser == null) {
+                    targetUser = Process.myUserHandle();
+                }
+                cancelAsUser.invoke(nm, SAVER_NOTIFICATION_TAG, SAVER_NOTIFICATION_ID, targetUser);
+                cancelled = true;
+            } catch (Throwable ignored) {}
+
+            if (!cancelled) {
+                nm.cancel(SAVER_NOTIFICATION_TAG, SAVER_NOTIFICATION_ID);
+            }
+        } catch (Throwable ignored) {}
+    }
+
     /**
      * Asks System UI to re-read the battery level.
      *
@@ -1195,6 +1780,44 @@ public class BatteryHook implements IXposedHookLoadPackage {
         } catch (Throwable t) {
             XposedBridge.log(
                     "BatteryRemapper: Could not re-judge the countdown: "
+                            + t.getMessage()
+            );
+        }
+    }
+
+    /** Re-evaluates Battery Saver state against current battery state immediately. */
+    private void evaluateBatterySaverNow() {
+        Context context = AndroidAppHelper.currentApplication();
+
+        if (context == null || !batterySaverEnabled) {
+            return;
+        }
+
+        try {
+            Intent battery = context.registerReceiver(
+                    null,
+                    new IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            );
+
+            Bundle extras = battery == null ? null : battery.getExtras();
+
+            if (extras == null) {
+                return;
+            }
+
+            int level = extras.getInt(BatteryManager.EXTRA_LEVEL, -1);
+
+            if (level < 0 || level > 100) {
+                return;
+            }
+
+            int plugged = extras.getInt(BatteryManager.EXTRA_PLUGGED, 0);
+            int displayedLevel = Mapping.remap(level, mapMin, mapMax);
+
+            handleBatterySaverLogic(context, displayedLevel, plugged);
+        } catch (Throwable t) {
+            XposedBridge.log(
+                    "BatteryRemapper: Could not re-evaluate Battery Saver: "
                             + t.getMessage()
             );
         }
