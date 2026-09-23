@@ -1,7 +1,6 @@
 package com.github.dhangofa.batteryremapper;
 
 import android.app.Activity;
-import android.content.pm.PackageInfo;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.CompoundButton;
@@ -615,15 +614,6 @@ public class MainActivity extends Activity {
         }
 
         card.setAlpha(enabled ? 1.0f : 0.52f);
-    }
-
-    private String resolveVersionName() {
-        try {
-            PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-            return packageInfo.versionName != null ? packageInfo.versionName : "1.0";
-        } catch (Exception ignored) {
-            return "1.0";
-        }
     }
 
     private void showRestartSystemUiDialog() {
