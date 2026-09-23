@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="brand_olive">#BBC092</color>
-    <color name="brand_sand">#5C563F</color>
+    <color name="brand_sand">#363428</color>
     <color name="brand_on_container">#F0E2C5</color>
     <color name="surface_background">#15170F</color>
     <color name="card_surface">#22241A</color>
@@ -25,4 +25,15 @@
     <color name="status_card_checking">#5C563F</color>
     <color name="status_card_active">#42472E</color>
     <color name="status_card_inactive">#35372F</color>
+
+    <!-- Unified subtle stroke color for all cards, pills, buttons, and shapes -->
+    <color name="shared_stroke">#1CBBC092</color>
+
+    <!-- Squircle and Pill button styling -->
+    <color name="squircle_surface">@color/icon_button_surface</color>
+    <color name="icon_button_surface">@color/brand_sand</color>
+    <color name="separator_line">@color/shared_stroke</color>
+
+    <!-- Ripple colors -->
+    <color name="ripple_olive">#40BBC092</color>
 </resources>
