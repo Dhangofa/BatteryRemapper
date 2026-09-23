@@ -4,7 +4,7 @@
     <!-- Application -->
     <string name="app_name">BatteryRemapper</string>
     <string name="app_subtitle">Smarter battery range control</string>
-    <string name="app_version_default">v1.0</string>
+    <string name="app_version_default">v1.0.0</string>
     <string name="app_version_format">v%1$s</string>
 
     <!-- Module description, shown by the Xposed framework -->
@@ -100,6 +100,20 @@
 
     <string name="restart_system_ui_now">Restart now</string>
     <string name="restart_system_ui_later">Later</string>
+
+    <!-- About Page -->
+    <string name="about_title">About</string>
+    <string name="about_license_mit">MIT License</string>
+    <string name="section_contributors">CONTRIBUTORS</string>
+    <string name="developer_name">Dhangofa</string>
+    <string name="developer_role">Lead Developer</string>
+    <string name="contributor_name">Rillwyn</string>
+    <string name="contributor_role">Core contributor</string>
+    <string name="cd_navigate_up">Navigate up</string>
+    <string name="cd_github_repo">BatteryRemapper GitHub Repository</string>
+    <string name="cd_telegram_chat">Telegram Discussion Group</string>
+    <string name="cd_developer_profile">Dhangofa GitHub Profile</string>
+    <string name="cd_contributor_profile">Rillwyn GitHub Profile</string>
 
     <!--
         Recommended LSPosed scope, referenced by the legacy xposedscope meta-data in the manifest.
