@@ -21,7 +21,7 @@ By restricting daily operational usage to these optimal chemical thresholds, Bat
 </ul>
 <b>Requirements:</b>
 <ul>
-<li>Android 10 + (API 29).</li>
+<li>Android 10+ (API 29+).</li>
 <li>LSPosed framework (or compatible Xposed framework) with System UI (com.android.systemui) added to the module scope.</li>
 <li>Root access is optional (required only for the in-app "Restart System UI" shortcut).</li>
 </ul>
