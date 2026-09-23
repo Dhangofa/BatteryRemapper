@@ -4,7 +4,7 @@
     <!-- 应用 -->
     <string name="app_name">BatteryRemapper</string>
     <string name="app_subtitle">更聪明的电量区间控制</string>
-    <string name="app_version_default">v1.0</string>
+    <string name="app_version_default">v1.0.0</string>
     <string name="app_version_format">v%1$s</string>
 
     <string name="module_description">把可自定义的物理电量区间显示为 0–100%，并提供省电模式与低电量关机自动化。</string>
@@ -95,5 +95,19 @@
 
     <string name="restart_system_ui_now">立即重启</string>
     <string name="restart_system_ui_later">稍后</string>
+
+    <!-- 关于页面 -->
+    <string name="about_title">关于</string>
+    <string name="about_license_mit">MIT 协议</string>
+    <string name="section_contributors">贡献者</string>
+    <string name="developer_name">Dhangofa</string>
+    <string name="developer_role">主开发者</string>
+    <string name="contributor_name">Rillwyn</string>
+    <string name="contributor_role">核心贡献者</string>
+    <string name="cd_navigate_up">返回</string>
+    <string name="cd_github_repo">BatteryRemapper GitHub 仓库</string>
+    <string name="cd_telegram_chat">Telegram 交流群</string>
+    <string name="cd_developer_profile">Dhangofa 的 GitHub 主页</string>
+    <string name="cd_contributor_profile">Rillwyn 的 GitHub 主页</string>
 
 </resources>
