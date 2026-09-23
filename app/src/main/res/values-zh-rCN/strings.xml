@@ -65,6 +65,12 @@
     <string name="shutdown_dialog_message">设备将在 %1$d 秒后关机。\n插入充电器即可取消。</string>
     <string name="shutdown_dialog_use_anyway">继续使用</string>
 
+    <!-- 省电模式通知 -->
+    <string name="battery_saver_notif_title">省电模式已开启</string>
+    <string name="battery_saver_notif_text">电量达到 %1$d%%，已自动开启省电模式。</string>
+    <string name="battery_saver_notif_turn_off">关闭</string>
+    <string name="battery_saver_channel_name">省电模式</string>
+
 
     <!-- 手动重启 System UI -->
     <string name="restart_system_ui">重启 System UI</string>
