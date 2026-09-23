@@ -1,0 +1,9 @@
+• Full Material 3 manager app with dark/light themes.
+• Customizable physical battery range via dual-thumb slider.
+• Real-time LSPosed System UI hook status detection.
+• Rootless IPC via ContentProvider for instant sync.
+• Smart Battery Saver with hysteresis & charger bypass.
+• Added Low-battery shutdown countdown dissmiss button.
+• One-click System UI restart (root).
+• About screen with contributor credits & community links.
+• Upgraded to Target SDK 37 and Java 17.
