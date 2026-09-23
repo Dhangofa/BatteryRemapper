@@ -70,6 +70,12 @@
     <string name="shutdown_dialog_message">Device will shut down in %1$d seconds.\nPlug in the charger to cancel.</string>
     <string name="shutdown_dialog_use_anyway">Use anyway</string>
 
+    <!-- Battery Saver notification -->
+    <string name="battery_saver_notif_title">Battery Saver is on</string>
+    <string name="battery_saver_notif_text">Turned on automatically at %1$d%% battery.</string>
+    <string name="battery_saver_notif_turn_off">Turn off</string>
+    <string name="battery_saver_channel_name">Battery Saver</string>
+
 
     <!-- Manual SystemUI restart -->
     <string name="restart_system_ui">Restart System UI</string>
