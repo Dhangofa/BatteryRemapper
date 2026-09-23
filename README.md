@@ -1,4 +1,4 @@
-# BatteryRemapper (LSPosed Module & Manager App)
+# BatteryRemapper (LSPosed Module)
 <div align="center">
  <p align="center">
   <img src="https://raw.githubusercontent.com/Dhangofa/BatteryRemapper/refs/heads/main/fastlane/metadata/android/en-US/images/featureGraphic.png" alt="BatteryRemapper Banner"  width="700" max-width="100%"><br>
