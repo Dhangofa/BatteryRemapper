@@ -1,7 +1,7 @@
 # BatteryRemapper (LSPosed Module & Manager App)
 <div align="center">
  <p align="center">
-  <img src="https://raw.githubusercontent.com/Dhangofa/BatteryRemapper/refs/heads/dev/fastlane/metadata/android/en-US/images/featureGraphic.png" alt="BatteryRemapper Banner"  width="700" max-width="100%"><br>
+  <img src="https://raw.githubusercontent.com/Dhangofa/BatteryRemapper/refs/heads/main/fastlane/metadata/android/en-US/images/featureGraphic.png" alt="BatteryRemapper Banner"  width="700" max-width="100%"><br>
  </p>
  
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
