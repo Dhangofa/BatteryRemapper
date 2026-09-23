@@ -10,11 +10,7 @@ android {
         applicationId = "com.github.dhangofa.batteryremapper"
         minSdk = 29
         targetSdk = 37
-        
-        // Dynamic versioning using run_number from CI
-        val runNumber = project.findProperty("versionCode")?.toString()?.toInt() ?: 1
-        
-        versionCode = runNumber
+        versionCode = 59
         versionName = "1.1.0"
     }
     // Suggested by IzzyOnDroid
