@@ -15,7 +15,7 @@ android {
         val runNumber = project.findProperty("versionCode")?.toString()?.toInt() ?: 1
         
         versionCode = runNumber
-        versionName = "1.0.$runNumber"
+        versionName = "1.1.0"
     }
     // Suggested by IzzyOnDroid
     dependenciesInfo {
