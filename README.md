@@ -33,7 +33,7 @@ By restricting daily operational usage to these optimal chemical thresholds, Bat
   * Optional safety sequence that initiates a system-level 30-second countdown when reaching your chosen trigger level (defaulting to 0% remapped).
   * **Smart Charger Abort:** Plugging in a charger instantly aborts the shutdown sequence and dismisses the alert.
   * **Dismissal Safeguard:** Dismissing the alert dialog temporarily suppresses repeated countdowns for the remainder of the discharge cycle.
-* **One-Click System UI Restart:** Dedicated root-enabled action (`su -c "killall -9 com.android.systemui"`) with confirmation dialog to instantly apply changes without a full device reboot.
+* **One-Click System UI Restart:** Dedicated root-enabled action (`su -c killall com.android.systemui`) with confirmation dialog to instantly apply changes without a full device reboot.
 * **Seamless Shared IPC (`SettingsProvider`):** Rootless, real-time configuration sharing between the manager app and the System UI hook via an internal Content Provider.
 * **About & Credits Hub:** Dedicated About screen with dynamic version tracking, repository links, license details, and developer/contributor credits.
 
