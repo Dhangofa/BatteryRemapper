@@ -1,0 +1,1 @@
+Remap status bar battery display to protect physical battery health.

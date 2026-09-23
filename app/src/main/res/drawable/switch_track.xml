@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Disabled -->
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <size
+                android:width="50dp"
+                android:height="28dp" />
+
+            <corners android:radius="14dp" />
+
+            <solid android:color="@color/switch_track_disabled" />
+
+            <stroke
+                android:width="1dp"
+                android:color="@color/switch_border_disabled" />
+        </shape>
+    </item>
+
+    <!-- Checked -->
+    <item android:state_checked="true">
+        <shape android:shape="rectangle">
+            <size
+                android:width="50dp"
+                android:height="28dp" />
+
+            <corners android:radius="14dp" />
+
+            <solid android:color="@color/brand_olive" />
+
+            <stroke
+                android:width="1dp"
+                android:color="@color/brand_olive" />
+        </shape>
+    </item>
+
+    <!-- Unchecked -->
+    <item>
+        <shape android:shape="rectangle">
+            <size
+                android:width="50dp"
+                android:height="28dp" />
+
+            <corners android:radius="14dp" />
+
+            <solid android:color="@color/switch_track_off" />
+
+            <stroke
+                android:width="1dp"
+                android:color="@color/switch_track_border" />
+        </shape>
+    </item>
+
+</selector>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Full olive background -->
+    <path
+        android:fillColor="#73784B"
+        android:pathData="M0,0H108V108H0Z" />
+
+    <!-- Subtle sand overlay across the upper background -->
+    <path
+        android:fillColor="#18E2D2AE"
+        android:pathData="M0,0
+            H108
+            V58
+            C83,46 56,42 0,55
+            Z" />
+
+</vector>

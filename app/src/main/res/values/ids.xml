@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Application-owned ids for the slider's two custom accessibility actions.
+
+    These must come from this package rather than being hard-coded: an id in the 0x01 package is
+    the framework's own resource namespace, so a hand-written value there can collide with a
+    platform accessibility action now or later.
+-->
+<resources>
+    <item name="accessibility_action_adjust_lower" type="id" />
+    <item name="accessibility_action_adjust_upper" type="id" />
+</resources>

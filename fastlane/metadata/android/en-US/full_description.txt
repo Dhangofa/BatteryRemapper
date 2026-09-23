@@ -1,0 +1,27 @@
+BatteryRemapper is an open-source LSPosed module and companion Material management application that recalibrates Android's battery reporting scale. It maps a customizable physical battery window (by default 20% – 80%) into a full 0% – 100% display layer across your status bar, quick settings, and lock screen.
+<br><br>
+By restricting daily operational usage to these optimal chemical thresholds, BatteryRemapper helps minimize lithium-ion degradation, prevents high-voltage stress, and extends the lifespan of non-removable batteries.
+<br><br>
+<b>Key Features:</b>
+<ul>
+<li><b>Interactive Material 3 Manager:</b> Clean interface with system bar edge-to-edge support and automatic dark/light theme integration.</li>
+<li><b>Customizable Physical Range:</b> Adjust your physical charge floor and ceiling using an interactive dual-thumb range slider (e.g., 20% – 80%, 15% – 85%, or any custom bounds).</li>
+<li><b>Live Hook Detection:</b> Real-time bidirectional IPC handshake that probes System UI to immediately indicate whether the module hook is Active, Inactive, or Checking.</li>
+<li><b>Linear Scale Remapping:</b> Smoothly translates physical battery percentage to your configured scale across the status bar, notification shade, and lock screen.</li>
+<li><b>Smart Battery Saver Automation:</b>
+<ul>
+<li>Automatically enables Battery Saver mode when remapped percentage reaches 20% or below.</li>
+<li>Automatically turns Battery Saver mode OFF once remapped battery charges past 50%.</li>
+<li>Hysteresis dead-zone maintains state between 21% – 50% when unplugged to prevent toggling flutter.</li>
+<li>Instant charging bypass disengages Battery Saver upon connecting a charger.</li>
+</ul>
+<li><b>Automated Low-Battery Shutdown Protection:</b> Optional safety sequence that initiates a 30-second countdown when reaching your chosen trigger level, with instant abort upon connecting a charger.</li>
+<li><b>One-Click System UI Restart:</b> Quick action to restart System UI (requires root) to apply changes immediately without rebooting the device.</li>
+<li><b>Rootless Shared IPC:</b> Seamless communication between the manager app and System UI via an internal Content Provider.</li>
+</ul>
+<b>Requirements:</b>
+<ul>
+<li>Android 10+ (API 29+).</li>
+<li>LSPosed framework (or compatible Xposed framework) with System UI (com.android.systemui) added to the module scope.</li>
+<li>Root access is optional (required only for the in-app "Restart System UI" shortcut).</li>
+</ul>

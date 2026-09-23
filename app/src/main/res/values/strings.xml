@@ -1,6 +1,126 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- Application -->
+    <string name="app_name">BatteryRemapper</string>
+    <string name="app_subtitle">Smarter battery range control</string>
+    <string name="app_version_default">v1.0.0</string>
+    <string name="app_version_format">v%1$s</string>
+
+    <!-- Module description, shown by the Xposed framework -->
+    <string name="module_description">Displays a configurable physical battery range as 0-100%, with optional Battery Saver and low-battery shutdown automation.</string>
+
+
+    <!-- SystemUI hook status -->
+    <string name="section_status">MODULE STATUS</string>
+
+    <string name="status_checking_title">Checking module status</string>
+    <string name="status_checking_description">Waiting for the BatteryRemapper hook inside System UI to respond…</string>
+
+    <string name="status_active_title">BatteryRemapper is working</string>
+    <string name="status_active_description">The module is loaded and responding inside System UI.</string>
+
+    <string name="status_inactive_title">System UI hook not detected</string>
+    <string name="status_inactive_description">Enable BatteryRemapper in LSPosed, select System UI in the module scope, and then restart System UI using the refresh button above.</string>
+
+    <string name="status_tap_to_check">Tap this card to check again.</string>
+
+
+    <!-- Battery remapping -->
+    <string name="section_remapping">BATTERY REMAPPING</string>
+
+    <string name="remapper_title">Enable battery remapping</string>
+    <string name="remapper_description">Stretches the physical range chosen below onto the displayed 0–100% scale. Turn this off to show the original battery percentage.</string>
+
+    <string name="remapping_range_title">Mapping range</string>
+    <string name="remapping_range_description">Which physical battery range the display stretches onto 0–100%.</string>
+
+    <string name="map_range_value_format">%1$d%% – %2$d%% physical</string>
+    <!-- Announced by a screen reader; the bound being adjusted is named first. -->
+    <string name="map_range_active_lower">Mapping range, adjusting the lower bound: %1$d%% (upper bound %2$d%%)</string>
+    <string name="map_range_active_upper">Mapping range, adjusting the upper bound: %1$d%% (lower bound %2$d%%)</string>
+    <string name="a11y_action_adjust_lower">Adjust the lower bound</string>
+    <string name="a11y_action_adjust_upper">Adjust the upper bound</string>
+    <string name="map_preview_format">Physical %1$d%% → 0%%　·　Physical %2$d%% → 100%%</string>
+
+
+    <!-- Automation -->
+    <string name="section_automation">OPTIONAL AUTOMATION</string>
+
+    <string name="battery_saver_title">Automatic Battery Saver</string>
+    <string name="battery_saver_description">Turns Battery Saver on at 20% displayed battery and turns it off above 50%. Battery Saver remains off while charging.</string>
+
+    <string name="auto_shutdown_title">Low-battery shutdown</string>
+    <string name="auto_shutdown_description">Starts a 30-second shutdown countdown at the displayed level set below. Connecting a charger cancels the countdown.</string>
+
+    <string name="shutdown_trigger_title">Countdown trigger</string>
+    <string name="shutdown_trigger_description">The countdown starts at or below this level. 0% is the original behaviour.</string>
+    <string name="shutdown_trigger_value_format">%1$d%% displayed ≈ %2$d%% physical</string>
+
+    <string name="settings_note">Battery Saver and shutdown automation are available only while battery remapping is enabled.</string>
+
+
+    <!--
+        Shutdown countdown dialog.
+
+        The hook reads these from the module's own resources through createPackageContext(), so the
+        normal resource system selects the language: English here, Chinese in values-zh-rCN.
+    -->
+    <string name="shutdown_dialog_title">Battery depleted</string>
+    <string name="shutdown_dialog_message">Device will shut down in %1$d seconds.\nPlug in the charger to cancel.</string>
+    <string name="shutdown_dialog_use_anyway">Use anyway</string>
+
+    <!-- Battery Saver notification -->
+    <string name="battery_saver_notif_title">Battery Saver is on</string>
+    <string name="battery_saver_notif_text">Turned on automatically at %1$d%% battery.</string>
+    <string name="battery_saver_notif_turn_off">Turn off</string>
+    <string name="battery_saver_channel_name">Battery Saver</string>
+
+
+    <!-- Manual SystemUI restart -->
+    <string name="restart_system_ui">Restart System UI</string>
+
+    <string name="restart_system_ui_title">Restart System UI?</string>
+    <string name="restart_system_ui_message">The status bar, Quick Settings, notifications, and lock screen controls may disappear briefly while System UI restarts. Root access is required.</string>
+
+    <string name="restart_system_ui_confirm">Restart</string>
+    <string name="restart_system_ui_cancel">Cancel</string>
+
+    <string name="restart_system_ui_started">Restarting System UI…</string>
+    <string name="restart_system_ui_failed">System UI could not be restarted. Make sure root access was granted, then try again.</string>
+    <string name="restart_system_ui_busy">A System UI restart is already in progress.</string>
+
+
+    <!-- Main-toggle prompt -->
+    <string name="system_ui_refresh_required_title">Change applied</string>
+
+    <string name="remapper_enabled_refresh_message">Battery remapping is now enabled. The status bar updates on its own; restart System UI only if the percentage does not change.</string>
+
+    <string name="remapper_disabled_refresh_message">Battery remapping is now disabled. The status bar updates on its own; restart System UI only if the percentage does not change.</string>
+
+    <string name="restart_system_ui_now">Restart now</string>
+    <string name="restart_system_ui_later">Later</string>
+
+    <!-- About Page -->
+    <string name="about_title">About</string>
+    <string name="about_license_mit">MIT License</string>
+    <string name="section_contributors">CONTRIBUTORS</string>
+    <string name="developer_name">Dhangofa</string>
+    <string name="developer_role">Lead Developer</string>
+    <string name="contributor_name">Rillwyn</string>
+    <string name="contributor_role">Core contributor</string>
+    <string name="cd_navigate_up">Navigate up</string>
+    <string name="cd_github_repo">BatteryRemapper GitHub Repository</string>
+    <string name="cd_telegram_chat">Telegram Discussion Group</string>
+    <string name="cd_developer_profile">Dhangofa GitHub Profile</string>
+    <string name="cd_contributor_profile">Rillwyn GitHub Profile</string>
+
+    <!--
+        Recommended LSPosed scope, referenced by the legacy xposedscope meta-data in the manifest.
+        The item is a package name, so it needs no translation.
+    -->
     <string-array name="xposedscope">
         <item>com.android.systemui</item>
     </string-array>
+
 </resources>

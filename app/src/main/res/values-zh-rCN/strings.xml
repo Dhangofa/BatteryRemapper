@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 应用 -->
+    <string name="app_name">BatteryRemapper</string>
+    <string name="app_subtitle">更聪明的电量区间控制</string>
+    <string name="app_version_default">v1.0.0</string>
+    <string name="app_version_format">v%1$s</string>
+
+    <string name="module_description">把可自定义的物理电量区间显示为 0–100%，并提供省电模式与低电量关机自动化。</string>
+
+
+    <!-- 模块状态 -->
+    <string name="section_status">模块状态</string>
+
+    <string name="status_checking_title">正在检测模块状态</string>
+    <string name="status_checking_description">正在等待 System UI 中的 BatteryRemapper 钩子响应…</string>
+
+    <string name="status_active_title">BatteryRemapper 正在工作</string>
+    <string name="status_active_description">模块已加载，并在 System UI 中正常响应。</string>
+
+    <string name="status_inactive_title">未检测到 System UI 钩子</string>
+    <string name="status_inactive_description">请在 LSPosed 中启用 BatteryRemapper，把 System UI 加入作用域，然后用右上角的重启按钮重启 System UI。</string>
+
+    <string name="status_tap_to_check">点击此卡片可重新检测。</string>
+
+
+    <!-- 电量映射 -->
+    <string name="section_remapping">电量映射</string>
+
+    <string name="remapper_title">启用电量映射</string>
+    <string name="remapper_description">把下方选定的物理区间拉伸到显示的 0–100%。关闭后显示原始电量百分比。</string>
+
+    <string name="remapping_range_title">映射区间</string>
+    <string name="remapping_range_description">选择显示层要拉伸的物理电量区间。</string>
+
+    <string name="map_range_value_format">物理 %1$d%% – %2$d%%</string>
+    <!-- 屏幕阅读器朗读用：正在调整的那条边界放在最前 -->
+    <string name="map_range_active_lower">映射区间，正在调整下限：%1$d%%（上限 %2$d%%）</string>
+    <string name="map_range_active_upper">映射区间，正在调整上限：%1$d%%（下限 %2$d%%）</string>
+    <string name="a11y_action_adjust_lower">调整下限</string>
+    <string name="a11y_action_adjust_upper">调整上限</string>
+    <string name="map_preview_format">物理 %1$d%% → 0%%　·　物理 %2$d%% → 100%%</string>
+
+
+    <!-- 自动化 -->
+    <string name="section_automation">可选自动化</string>
+
+    <string name="battery_saver_title">自动省电模式</string>
+    <string name="battery_saver_description">显示电量降到 20% 时开启省电模式，高于 50% 时关闭。充电时始终保持关闭。</string>
+
+    <string name="auto_shutdown_title">低电量关机</string>
+    <string name="auto_shutdown_description">显示电量降到下方设定的值时，弹出 30 秒关机倒计时。插上充电器即取消。</string>
+
+    <string name="shutdown_trigger_title">倒计时触发值</string>
+    <string name="shutdown_trigger_description">显示电量降到该值及以下时开始倒计时。0% 即原有行为。</string>
+    <string name="shutdown_trigger_value_format">显示 %1$d%% ≈ 物理 %2$d%%</string>
+
+    <string name="settings_note">省电模式与关机自动化仅在启用电量映射时可用。</string>
+
+
+    <!-- 关机倒计时对话框（hook 通过 createPackageContext 读取本模块资源，
+         由资源系统按语言自动选择，因此这里只放中文）。 -->
+    <string name="shutdown_dialog_title">电量耗尽</string>
+    <string name="shutdown_dialog_message">设备将在 %1$d 秒后关机。\n插入充电器即可取消。</string>
+    <string name="shutdown_dialog_use_anyway">继续使用</string>
+
+    <!-- 省电模式通知 -->
+    <string name="battery_saver_notif_title">省电模式已开启</string>
+    <string name="battery_saver_notif_text">电量达到 %1$d%%，已自动开启省电模式。</string>
+    <string name="battery_saver_notif_turn_off">关闭</string>
+    <string name="battery_saver_channel_name">省电模式</string>
+
+
+    <!-- 手动重启 System UI -->
+    <string name="restart_system_ui">重启 System UI</string>
+
+    <string name="restart_system_ui_title">重启 System UI？</string>
+    <string name="restart_system_ui_message">重启期间状态栏、快捷设置、通知和锁屏控件可能会短暂消失。需要 root 权限。</string>
+
+    <string name="restart_system_ui_confirm">重启</string>
+    <string name="restart_system_ui_cancel">取消</string>
+
+    <string name="restart_system_ui_started">正在重启 System UI…</string>
+    <string name="restart_system_ui_failed">无法重启 System UI。请确认已授予 root 权限后重试。</string>
+    <string name="restart_system_ui_busy">已有一次重启正在进行中。</string>
+
+
+    <!-- 总开关提示 -->
+    <string name="system_ui_refresh_required_title">改动已应用</string>
+
+    <string name="remapper_enabled_refresh_message">电量映射已启用。状态栏会自行更新；若百分比没有变化，再重启 System UI。</string>
+
+    <string name="remapper_disabled_refresh_message">电量映射已停用。状态栏会自行更新；若百分比没有变化，再重启 System UI。</string>
+
+    <string name="restart_system_ui_now">立即重启</string>
+    <string name="restart_system_ui_later">稍后</string>
+
+    <!-- 关于页面 -->
+    <string name="about_title">关于</string>
+    <string name="about_license_mit">MIT 协议</string>
+    <string name="section_contributors">贡献者</string>
+    <string name="developer_name">Dhangofa</string>
+    <string name="developer_role">主开发者</string>
+    <string name="contributor_name">Rillwyn</string>
+    <string name="contributor_role">核心贡献者</string>
+    <string name="cd_navigate_up">返回</string>
+    <string name="cd_github_repo">BatteryRemapper GitHub 仓库</string>
+    <string name="cd_telegram_chat">Telegram 交流群</string>
+    <string name="cd_developer_profile">Dhangofa 的 GitHub 主页</string>
+    <string name="cd_contributor_profile">Rillwyn 的 GitHub 主页</string>
+
+</resources>
