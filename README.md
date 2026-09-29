@@ -9,6 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B%20(API%2029%2B)-brightgreen.svg)](https://developer.android.com)
 ![Framework](https://img.shields.io/badge/Framework-LSPosed%20%2F%20Xposed-blue.svg)
+![Xposed API](https://img.shields.io/badge/Xposed%20API-89-green)
 [![Telegram Chat](https://img.shields.io/badge/Telegram-Community%20Chat-%230088cc?logo=telegram&logoColor=white)](https://t.me/dhangofas_projects_chat)
 
 </div>
